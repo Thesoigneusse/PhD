@@ -5,6 +5,7 @@
 
 import logging
 from typing import Any, Dict, List, Optional, NamedTuple
+import sys
 
 import torch
 from torch import Tensor
@@ -21,6 +22,7 @@ from fairseq.models.transformer import (
     transformer_test,
     transformer_voita_fairseq,
     transformer_vaswani_wmt_en_fr,
+    transformer_vaswani_wmt_zh_en,
     transformer_vaswani_wmt_en_fr_new_attn
 )
 from fairseq.modules.segment_embedding import (
@@ -47,6 +49,7 @@ EncoderOut = NamedTuple(
         ("src_tokens", Optional[Tensor]),  # B x T
         ("nsents", Optional[Tensor]),  # B x 1
         ("po_segment_labels", Optional[Tensor]),  # B x T
+        ("encoder_attns", Optional[List[Tensor]]),
     ],
 )
 
@@ -411,9 +414,15 @@ class ConcatTransformerEncoder(TransformerEncoder):
 
         # encoder layers
         encoder_states = [] if return_all_hiddens else None
-        attns = [] if self.analyze_self_attn else None
+        attns = [] if not self.training else None
         attn: Optional[Tensor] = None
+        save_attn = [] if not self.training else None
         for idx, layer in enumerate(self.layers):
+            if save_attn is not None:
+                save_attn.append({
+                "src_tokens": self.dictionary.string(src_tokens), # Source tokens (context + current)
+                "matrix_weights": []
+            })
             if self.persistent_pse and idx > 0:
                 # we add position-segment embeddings to the input of each layer
                 x += pse
@@ -425,8 +434,9 @@ class ConcatTransformerEncoder(TransformerEncoder):
                     # we add segment embeddings to the input of each layer
                     x += segment_emb
 
-            if self.analyze_self_attn:
-                x, attn = layer(x, encoder_padding_mask, need_attn=self.analyze_self_attn)
+            if not self.training:
+                x, attn = layer(x, encoder_padding_mask,
+                                need_attn=not self.training)
                 attns.append(attn)
             else:
                 x = layer(x, encoder_padding_mask, need_attn=self.analyze_self_attn)
@@ -438,7 +448,17 @@ class ConcatTransformerEncoder(TransformerEncoder):
         if self.layer_norm is not None:
             x = self.layer_norm(x)
 
-        if self.analyze_self_attn:
+        # if attns is not None and len(attns) > 0:
+            #    # TODO: save attention and sentences here => similar to what we have done for the multi-encoder model !
+            # print(f"[DEBUG]attns : {attns}")
+            # for i in range(len(attns)):
+            #    # print(f"[DEBUG]attns[i] : {attns[i].item()}")
+            #    print(f"[DEBUG]attns[{i}, :, :] : {attns[i]}")
+            #    sys.stdout.flush()
+            #    save_attn[idx]["matrix_weights"].append(attns[i])
+        #    raise NotImplementedError()
+
+        if False:
             def analyze_attn(attns, segment_labels, src_tokens, layer="all", debug=False):
                 if layer == "all":
                     # average attention over all layers
@@ -481,9 +501,9 @@ class ConcatTransformerEncoder(TransformerEncoder):
             encoder_states=encoder_states,  # List[T x B x C]
             src_tokens=src_tokens,
             nsents=nsents,
-            po_segment_labels=po_segment_labels
+            po_segment_labels=po_segment_labels,
+            encoder_attns=attns
         )
-
 
     @torch.jit.export
     def reorder_encoder_out(self, encoder_out: EncoderOut, new_order):
@@ -529,6 +549,7 @@ class ConcatTransformerEncoder(TransformerEncoder):
             src_tokens=src_tokens,  # B x T
             nsents=nsents,
             po_segment_labels=po_segment_labels,
+            encoder_attns=encoder_out.encoder_attns,
         )
 
 class ConcatTransformerDecoder(TransformerDecoder):
@@ -632,7 +653,8 @@ class ConcatTransformerDecoder(TransformerDecoder):
                         )
                     if self.position_shift == -1:
                         # shift = the average length of sentences belonging to the concatenated sequence
-                        shift = (encoder_out.src_tokens.ne(self.padding_idx).sum(dim=1) / encoder_out.nsents).ceil().to(dtype=encoder_out.nsents.dtype)
+                        shift = (encoder_out.src_tokens.ne(self.padding_idx).sum(
+                            dim=1) / encoder_out.nsents).ceil().to(dtype=encoder_out.nsents.dtype)
                     else:
                         shift = self.position_shift
                     positions = self.embed_positions(
@@ -704,7 +726,7 @@ class ConcatTransformerDecoder(TransformerDecoder):
             self_attn_padding_mask = prev_output_tokens.eq(self.padding_idx)
 
         # decoder layers
-        attns = [] if (self.analyze_self_attn or self.analyze_cross_attn) else None
+        attns = [] if not self.training else None
         attn: Optional[Tensor] = None
         inner_states: List[Optional[Tensor]] = [x]
         for idx, layer in enumerate(self.layers):
@@ -723,8 +745,8 @@ class ConcatTransformerDecoder(TransformerDecoder):
                 if self.persistent_segment_emb and idx > 0:
                     # we add segment embeddings to the input of each layer
                     x += segment_emb
-            if self.analyze_self_attn or self.analyze_cross_attn:
-                x, layer_attn, _ = layer(
+            if not self.training:
+                x, layer_attn, self_attn_layer = layer(
                     x,
                     encoder_out.encoder_out if encoder_out is not None else None,
                     encoder_out.encoder_padding_mask
@@ -735,9 +757,9 @@ class ConcatTransformerDecoder(TransformerDecoder):
                     need_attn=bool((idx == alignment_layer)) or self.analyze_cross_attn,
                     need_self_attn=self.analyze_self_attn
                 )
-                attns.append(layer_attn)
+                attns.append(self_attn_layer)
             else:
-                x, layer_attn, _ = layer(
+                x, _ , _ = layer( # x, layer_attn, layer_self_attn
                     x,
                     encoder_out.encoder_out if encoder_out is not None else None,
                     encoder_out.encoder_padding_mask
@@ -750,7 +772,7 @@ class ConcatTransformerDecoder(TransformerDecoder):
                 )
             inner_states.append(x)
         
-        if attns is not None:
+        if False:
             def analyze_attn(attns, segment_labels, tokens, layer="all", debug=False):
                 if layer == "all":
                     # average attention over all layers
@@ -788,16 +810,19 @@ class ConcatTransformerDecoder(TransformerDecoder):
 
             # analyze attention distribution at each layer
             for layer in ["all", 0, 1, 2, 3, 4, 5]:
-                attn_curr_to_curr, avg_sent_entr = analyze_attn(attns, po_segment_labels, prev_output_tokens, layer=layer)
+                attn_curr_to_curr, avg_sent_entr = analyze_attn(
+                    attns, po_segment_labels, prev_output_tokens, layer=layer)
                 # log results
                 if attn_curr_to_curr is not None:
-                    for a,e in zip(attn_curr_to_curr,avg_sent_entr):
-                        logger.info(f"Decoder {layer} layer cur2cur attn: {a.item()}")
-                        logger.info(f"Decoder {layer} layer avg attn entropy: {e.item()}")
+                    for a, e in zip(attn_curr_to_curr, avg_sent_entr):
+                        logger.info(
+                            f"Decoder {layer} layer cur2cur attn: {a.item()}")
+                        logger.info(
+                            f"Decoder {layer} layer avg attn entropy: {e.item()}")
                 else:
                     for e in avg_sent_entr:
-                        logger.info(f"Decoder {layer} layer avg attn entropy: {e.item()}")
-
+                        logger.info(
+                            f"Decoder {layer} layer avg attn entropy: {e.item()}")
 
             # if layer_attn is not None and idx == alignment_layer:
             #     attn = layer_attn.float().to(x)
@@ -818,7 +843,7 @@ class ConcatTransformerDecoder(TransformerDecoder):
         if self.project_out_dim is not None:
             x = self.project_out_dim(x)
 
-        return x, {"attn": [attn], "inner_states": inner_states}
+        return x, {"attn": [attn], "inner_states": inner_states, 'enc_attns': encoder_out.encoder_attns, 'dec_attns': attns}
 
 @torch.no_grad()
 def label_segments(
@@ -988,6 +1013,17 @@ def concat_vaswani_wmt_en_fr(args):
     args.persistent_segment_emb = getattr(args, "persistent_segment_emb", False)
     # other args
     transformer_vaswani_wmt_en_fr(args)
+
+@register_model_architecture("concat_transformer", "concat_vaswani_wmt_zh_en")
+def concat_vaswani_wmt_en_fr(args):
+    # concat args
+    args.use_segment_emb = getattr(args, "use_segment_emb", False)
+    args.lrn_segment_emb = getattr(args, "lrn_segment_emb", False)
+    args.onehot_segment_emb = getattr(args, "onehot_segment_emb", False)
+    args.persistent_positions = getattr(args, "persistent_positions", False)
+    args.persistent_segment_emb = getattr(args, "persistent_segment_emb", False)
+    # other args
+    transformer_vaswani_wmt_zh_en(args)
 
 @register_model_architecture("concat_transformer", "concat_segshift_vaswani_wmt_en_fr")
 def concat_segshift_vaswani_wmt_en_fr(args):
