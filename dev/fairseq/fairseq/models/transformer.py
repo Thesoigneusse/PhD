@@ -1336,7 +1336,7 @@ def transformer_vaswani_wmt_zh_en(args):
 
 
 @register_model_architecture("transformer", "transformer_vaswani_wmt_en_fr_new_attn")
-def transformer_vaswani_wmt_en_fr(args):
+def transformer_vaswani_wmt_en_fr_new_attn(args):
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 2048)
     args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 8)

@@ -1046,7 +1046,7 @@ def concat_lrn_pse_persistent_vaswani_wmt_en_fr(args):
 
 
 @register_model_architecture("concat_transformer", "concat_vaswani_wmt_en_fr_new_attn")
-def concat_vaswani_wmt_en_fr(args):
+def concat_vaswani_wmt_en_fr_new_attn(args):
     # concat args
     args.use_segment_emb = getattr(args, "use_segment_emb", False)
     args.lrn_segment_emb = getattr(args, "lrn_segment_emb", False)
