@@ -1042,3 +1042,15 @@ def concat_lrn_pse_persistent_vaswani_wmt_en_fr(args):
     # concat args
     args.persistent_pse = getattr(args, "persistent_pse", True)
     concat_lrn_seg_vaswani_wmt_en_fr(args)
+
+
+@register_model_architecture("concat_transformer", "concat_vaswani_wmt_en_fr_new_attn")
+def concat_vaswani_wmt_en_fr(args):
+    # concat args
+    args.use_segment_emb = getattr(args, "use_segment_emb", False)
+    args.lrn_segment_emb = getattr(args, "lrn_segment_emb", False)
+    args.onehot_segment_emb = getattr(args, "onehot_segment_emb", False)
+    args.persistent_positions = getattr(args, "persistent_positions", False)
+    args.persistent_segment_emb = getattr(args, "persistent_segment_emb", False)
+    # other args
+    transformer_vaswani_wmt_en_fr_new_attn(args)
