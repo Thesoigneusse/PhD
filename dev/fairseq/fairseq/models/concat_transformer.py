@@ -20,7 +20,8 @@ from fairseq.models.transformer import (
     base_architecture,
     transformer_test,
     transformer_voita_fairseq,
-    transformer_vaswani_wmt_en_fr
+    transformer_vaswani_wmt_en_fr,
+    transformer_vaswani_wmt_en_fr_new_attn
 )
 from fairseq.modules.segment_embedding import (
     SegmentEmbedding,
