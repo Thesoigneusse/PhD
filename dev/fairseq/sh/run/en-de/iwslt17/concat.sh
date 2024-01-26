@@ -151,6 +151,8 @@ if [ -n "$max_src_pos" ]; then max_src_pos=$max_src_pos; else max_src_pos=1024; 
 if [ -n "$max_tgt_pos" ]; then max_tgt_pos=$max_tgt_pos; else max_tgt_pos=1024; fi
 if [ -n "$need_seg_label" ]; then need_seg_label=$need_seg_label; else need_seg_label=False ; fi
 if [ -n "$context_discount" ]; then context_discount=$context_discount; else context_discount=1 ; fi
+if [ -n "$path" ]; then checkpoint_path=$path; else checkpoint_path=$checkpoint_path ; fi
+
 
 # Run #########################################################################
 if [ $t = "train" ]
@@ -283,7 +285,6 @@ then
     --batch-size $batch_size \
     --remove-bpe \
     --beam $beam \
-    --kind-attention-head "multihead_attention" \
     --lenpen $lenpen \
     --temperature $temperature \
     --include-eos $include_eos \

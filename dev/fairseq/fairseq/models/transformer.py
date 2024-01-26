@@ -1347,6 +1347,6 @@ def transformer_vaswani_wmt_en_fr_new_attn(args):
     args.decoder_layers = getattr(args, "decoder_layers", 6)
     args.share_all_embeddings = getattr(args, 'share_all_embeddings', True)
     args.dropout = getattr(args, "dropout", 0.1)
-    args.attention_head = getattr(args, "attention_head", "QuietMultiheadAttention")
+    args.attention_head = getattr(args, "kind_attention_head", "QuietMultiheadAttention")
 
     base_architecture(args)

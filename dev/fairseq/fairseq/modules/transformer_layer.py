@@ -72,22 +72,22 @@ class TransformerEncoderLayer(nn.Module):
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
         return quant_noise(
-            # nn.Linear(input_dim, output_dim),
-            Linear(input_dim, output_dim),
+            nn.Linear(input_dim, output_dim),
+            # Linear(input_dim, output_dim),
             p=q_noise,
             block_size=qn_block_size
         )
 
     def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
         return quant_noise(
-            # nn.Linear(input_dim, output_dim),
-            Linear(input_dim, output_dim),
+            nn.Linear(input_dim, output_dim),
+            # Linear(input_dim, output_dim),
             p=q_noise,
             block_size=qn_block_size
         )
 
     def build_self_attention(self, embed_dim, args):
-        if args.attention_head == "quiet_multihead_attention":
+        if hasattr(args, "kind_attention_head") and args.kind_attention_head == "quiet_multihead_attention":
             from fairseq.modules import QuietMultiheadAttention
             return QuietMultiheadAttention(
                 embed_dim,
@@ -276,20 +276,20 @@ class TransformerDecoderLayer(nn.Module):
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
         return quant_noise(
-            # nn.Linear(input_dim, output_dim), q_noise, qn_block_size
-            Linear(input_dim, output_dim), q_noise, qn_block_size
+            nn.Linear(input_dim, output_dim), q_noise, qn_block_size
+            # Linear(input_dim, output_dim), q_noise, qn_block_size
         )
 
     def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
         return quant_noise(
-            # nn.Linear(input_dim, output_dim), q_noise, qn_block_size
-            Linear(input_dim, output_dim), q_noise, qn_block_size
+            nn.Linear(input_dim, output_dim), q_noise, qn_block_size
+            # Linear(input_dim, output_dim), q_noise, qn_block_size
         )
 
     def build_self_attention(
         self, embed_dim, args, add_bias_kv=False, add_zero_attn=False
     ):
-        if args.attention_head == "quiet_multihead_attention":
+        if hasattr(args, "kind_attention_head") and args.kind_attention_head == "quiet_multihead_attention":
             from fairseq.modules import QuietMultiheadAttention
             return QuietMultiheadAttention(
                 embed_dim,
@@ -314,7 +314,7 @@ class TransformerDecoderLayer(nn.Module):
             )
 
     def build_encoder_attention(self, embed_dim, args):
-        if args.attention_head == "quiet_multihead_attention":
+        if hasattr(args, "kind_attention_head") and args.kind_attention_head == "quiet_multihead_attention":
             from fairseq.modules import QuietMultiheadAttention
             return QuietMultiheadAttention(
                 embed_dim,
