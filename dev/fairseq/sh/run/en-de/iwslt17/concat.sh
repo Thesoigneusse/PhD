@@ -151,6 +151,8 @@ if [ -n "$max_src_pos" ]; then max_src_pos=$max_src_pos; else max_src_pos=1024; 
 if [ -n "$max_tgt_pos" ]; then max_tgt_pos=$max_tgt_pos; else max_tgt_pos=1024; fi
 if [ -n "$need_seg_label" ]; then need_seg_label=$need_seg_label; else need_seg_label=False ; fi
 if [ -n "$context_discount" ]; then context_discount=$context_discount; else context_discount=1 ; fi
+if [ -n "$path" ]; then checkpoint_path=$path; else checkpoint_path=$checkpoint_path ; fi
+
 
 # Run #########################################################################
 if [ $t = "train" ]
@@ -176,6 +178,7 @@ then
     --optimizer adam --adam-betas "(0.9, 0.98)" \
     --lr-scheduler $lr_scheduler --lr $lr --warmup-updates $warmup_updates --warmup-init-lr $warmup_init_lr --min-lr $min_lr \
     --max-tokens $max_tokens \
+    --kind-attention-head "multihead_attention" \
     --update-freq $update_freq \
     --patience $patience \
     --keep-last-epochs $keep_last_epochs \

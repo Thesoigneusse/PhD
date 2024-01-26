@@ -404,8 +404,10 @@ class Doc2DocTranslation(TranslationTask):
                 if self.original_loss_for_stopping:
                     # in the logging, we call "loss" the undiscounted loss
                     # to be consistent with valid_step()
-                    logging_output['weighted_loss'] = loss.data
-                    logging_output['loss'] = logging_output['full_loss']
+                    # logging_output['weighted_loss'] = loss.data
+                    # logging_output['loss'] = logging_output['full_loss']
+                    logging_output['loss'] = loss.data
+                    logging_output['weighted_loss'] = logging_output['full_loss']
                 else:
                     logging_output['loss']=loss.data
         if ignore_grad:
@@ -438,9 +440,11 @@ class Doc2DocTranslation(TranslationTask):
                     if self.original_loss_for_stopping:
                         # in the logging, we call "loss" the undiscounted loss
                         # so that this loss will be used as a stopping criterion
-                        # instead of the actual (discounted) loss
-                        logging_output['weighted_loss'] = loss.data
-                        logging_output['loss'] = logging_output['full_loss']
+                            # instead of the actual (discounted) loss
+                        # logging_output['weighted_loss'] = loss.data
+                        # logging_output['loss'] = logging_output['full_loss']
+                        logging_output['loss'] = loss.data
+                        logging_output['weighted_loss'] = logging_output['full_loss']
                     else:
                         logging_output['loss']=loss.data
         else:
