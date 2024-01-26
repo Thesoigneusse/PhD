@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
-src=en
+# src=en
+src=input
+tgt=output
+lang=$src-$tgt
 DATA=$HOME/PhD/dev/fairseq/data/coreference
 # orig=/video/getalp/
 orig=$HOME/temp/orig/coreference/CoNLL-2012
@@ -64,30 +67,45 @@ if [ $1 = "standard" ]; then
 
     echo "Pre-processing data ..."
     for t in "train" "test" "dev"; do
-        for i in "input" "output"; do
-            cp $orig/conll2012.$i.$t $tmp/$t.$i.tok.$src
+        for i in $src $tgt; do
+            cp $orig/conll2012.$i.$t $tmp/$t.tok.$i
         done
     done
 
     echo "Retrieving Heads ..."
     for t in "train" "test" "dev"; do
-        for i in "input" "output"; do
-            python $HEADS --regular-expression="<End-Of-Document>\n" $tmp/$t.$i.tok.$src
+        for i in $src $tgt; do
+            python $HEADS --regular-expression="<End-Of-Document>\n" $tmp/$t.tok.$i
 
-            mv $tmp/$t.$i.tok.$src $prep/$t.$i.tok.$src
-            mv $tmp/$t.$i.tok.$src.heads $prep/$t.$i.tok.$src.heads
+            mv $tmp/$t.tok.$i $prep/$t.$i
+            mv $tmp/$t.tok.$i.heads $prep/$t.$i.heads
         done
     done
 
     echo "Printing stats train stats..."
-    for l in "input" "output"; do
+    for l in $src $tgt; do
         echo "Stats for train.$src (tokenized and cleaned):"
-        words=$(wc -w $prep/train.$l.tok.$src | awk '{print $1;}')
-        sents=$(wc -l $prep/train.$l.tok.$src | awk '{print $1;}')
+        words=$(wc -w $prep/train.$l | awk '{print $1;}')
+        sents=$(wc -l $prep/train.$l | awk '{print $1;}')
         printf "%10d words \n" $words
         printf "%10d sentences \n" $sents
         printf "%10s wps \n" $(echo "scale=2 ; $words / $sents" | bc)
         echo
     done
-    
+
+    # echo "Binarizing data ..."
+    rm -rf data-bin/$prep
+    fairseq-preprocess \
+        --source-lang $src \
+        --target-lang $tgt \
+        --train-pref $prep/train \
+        --test-pref $prep/test \
+        --valid-pref $prep/dev \
+        --joined-dictionary \
+        --dest-dir data-bin/$prep \
+        --workers 8
+    #     --srcdict data-bin/$CODE_SOURCE_DIR/standard/dict.en.txt \
+
+
+
 fi

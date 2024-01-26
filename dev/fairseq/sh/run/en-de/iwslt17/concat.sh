@@ -176,6 +176,7 @@ then
     --optimizer adam --adam-betas "(0.9, 0.98)" \
     --lr-scheduler $lr_scheduler --lr $lr --warmup-updates $warmup_updates --warmup-init-lr $warmup_init_lr --min-lr $min_lr \
     --max-tokens $max_tokens \
+    --kind-attention-head "multihead_attention" \
     --update-freq $update_freq \
     --patience $patience \
     --keep-last-epochs $keep_last_epochs \
@@ -282,6 +283,7 @@ then
     --batch-size $batch_size \
     --remove-bpe \
     --beam $beam \
+    --kind-attention-head "multihead_attention" \
     --lenpen $lenpen \
     --temperature $temperature \
     --include-eos $include_eos \
