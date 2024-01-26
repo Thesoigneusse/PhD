@@ -772,68 +772,7 @@ class ConcatTransformerDecoder(TransformerDecoder):
                 )
             inner_states.append(x)
         
-        if False:
-            def analyze_attn(attns, segment_labels, tokens, layer="all", debug=False):
-                if layer == "all":
-                    # average attention over all layers
-                    attn = torch.stack(attns,dim=0).mean(0)
-                else:
-                    # last layer attention
-                    attn = attns[int(layer)]
-                if debug:
-                    # calculate metrics on uniform attention distribution
-                    attn = (attn!=0)/(attn!=0).sum(2).unsqueeze(1)
-                # set to zero attention of the END token on itself in the decoder
-                attn[attn==1]=0
-                # compute mask
-                mask_pad = (segment_labels!=0).to(dtype=int)
-                # mask out attention from padding as query
-                attn = attn * mask_pad.unsqueeze(2)
-                # entropy
-                token_entr = torch.special.entr(attn).sum(2)
-                avg_sent_entr = token_entr.sum(1)/(token_entr!=0).sum(1)
-                if attn.shape[1]!=attn.shape[2]:
-                    # we don't calculate curr2curr attn for cross attention
-                    # sometimes this condition does not apply to cross attn
-                    # for target and source have same length. It doesnt matter
-                    return None, avg_sent_entr
-                else:
-                    # compute context mask
-                    mask_ctx = (segment_labels==1).to(dtype=int)
-                    # only retain attention weights of current queries
-                    attn_curr = attn * mask_ctx.unsqueeze(2)
-                    # for each query, only retain the sum of the attention weights to current keys,
-                    # then average over each current query in the batch
-                    attn_curr_to_curr = (attn_curr * mask_ctx.unsqueeze(1)).sum(2)
-                    avg_attn_curr_to_curr = attn_curr_to_curr.sum(1)/(attn_curr_to_curr!=0).sum(1)
-                    return avg_attn_curr_to_curr, avg_sent_entr
-
-            # analyze attention distribution at each layer
-            for layer in ["all", 0, 1, 2, 3, 4, 5]:
-                attn_curr_to_curr, avg_sent_entr = analyze_attn(
-                    attns, po_segment_labels, prev_output_tokens, layer=layer)
-                # log results
-                if attn_curr_to_curr is not None:
-                    for a, e in zip(attn_curr_to_curr, avg_sent_entr):
-                        logger.info(
-                            f"Decoder {layer} layer cur2cur attn: {a.item()}")
-                        logger.info(
-                            f"Decoder {layer} layer avg attn entropy: {e.item()}")
-                else:
-                    for e in avg_sent_entr:
-                        logger.info(
-                            f"Decoder {layer} layer avg attn entropy: {e.item()}")
-
-            # if layer_attn is not None and idx == alignment_layer:
-            #     attn = layer_attn.float().to(x)
-
-        # if attn is not None:
-        #     if alignment_heads is not None:
-        #         attn = attn[:alignment_heads]
-
-        #     # average probabilities over heads
-        #     attn = attn.mean(dim=0)
-
+        
         if self.layer_norm is not None:
             x = self.layer_norm(x)
 
