@@ -1,5 +1,7 @@
 dev/fairseq/data/
 dev/fairseq/tools/
-dev/fairseq/fairseq/models/__pycache__/*
-dev/fairseq/fairseq/models/__pycache__/concat_transformer.cpython-36.pyc
-dev/fairseq/fairseq/models/__pycache__/transformer.cpython-36.pyc
+dev/fairseq/fairseq/models/__pycache__/
+dev/fairseq/fairseq/modules/__pycache__/
+dev/fairseq/fairseq/task/__pycache__/
+dev/fairseq/fairseq_cli/__pycache__/
+checkpoints/
