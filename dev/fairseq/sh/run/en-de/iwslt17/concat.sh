@@ -152,6 +152,7 @@ if [ -n "$max_tgt_pos" ]; then max_tgt_pos=$max_tgt_pos; else max_tgt_pos=1024; 
 if [ -n "$need_seg_label" ]; then need_seg_label=$need_seg_label; else need_seg_label=False ; fi
 if [ -n "$context_discount" ]; then context_discount=$context_discount; else context_discount=1 ; fi
 if [ -n "$path" ]; then checkpoint_path=$path; else checkpoint_path=$checkpoint_path ; fi
+if [ -n "$kind_attention_head" ]; then kind_attention_head=$kind_attention_head; else kind_attention_head="multihead_attention" ; fi
 
 
 # Run #########################################################################
@@ -178,7 +179,7 @@ then
     --optimizer adam --adam-betas "(0.9, 0.98)" \
     --lr-scheduler $lr_scheduler --lr $lr --warmup-updates $warmup_updates --warmup-init-lr $warmup_init_lr --min-lr $min_lr \
     --max-tokens $max_tokens \
-    --kind-attention-head "multihead_attention" \
+    --kind-attention-head $kind_attention_head \
     --update-freq $update_freq \
     --patience $patience \
     --keep-last-epochs $keep_last_epochs \
@@ -224,6 +225,7 @@ then
     --optimizer adam --adam-betas "(0.9, 0.98)" \
     --lr-scheduler $lr_scheduler --lr $lr --warmup-updates $warmup_updates --warmup-init-lr $warmup_init_lr --min-lr $min_lr \
     --max-tokens $max_tokens \
+    --kind-attention-head $kind_attention_head \
     --update-freq $update_freq \
     --patience $patience \
     --keep-last-epochs $keep_last_epochs \
