@@ -261,6 +261,7 @@ then
     --optimizer adam --adam-betas "(0.9, 0.98)" \
     --lr-scheduler fixed --lr 2e-04 --fa 1 --lr-shrink 0.99 \
     --max-tokens $max_tokens \
+    --kind-attention-head $kind_attention_head \
     --update-freq $update_freq \
     --patience $patience \
     --keep-last-epochs $keep_last_epochs \
