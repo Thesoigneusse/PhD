@@ -94,8 +94,6 @@ class TransformerEncoderLayer(nn.Module):
                 args.encoder_attention_heads,
                 dropout=args.attention_dropout,
                 self_attention=True,
-                q_noise=self.quant_noise,
-                qn_block_size=self.quant_noise_block_size,
             )
         else :
             return MultiheadAttention(
@@ -298,8 +296,6 @@ class TransformerDecoderLayer(nn.Module):
                 add_bias_kv=add_bias_kv,
                 add_zero_attn=add_zero_attn,
                 self_attention=not getattr(args, "cross_self_attention", False),
-                q_noise=self.quant_noise,
-                qn_block_size=self.quant_noise_block_size
             )
         else :
             return MultiheadAttention(
@@ -323,8 +319,6 @@ class TransformerDecoderLayer(nn.Module):
                 vdim=getattr(args, "encoder_embed_dim", None),
                 dropout=args.attention_dropout,
                 encoder_decoder_attention=True,
-                q_noise=self.quant_noise,
-                qn_block_size=self.quant_noise_block_size,
             )
         else :
             return MultiheadAttention(
