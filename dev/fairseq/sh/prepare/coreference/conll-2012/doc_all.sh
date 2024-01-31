@@ -115,4 +115,8 @@ if [ $1 = "standard" ]; then
     #     done
     # done
     #     --srcdict $HOME/dev/fairseq/data/models/roberta/roberta.large/dict.txt \
-    #     --srcdict data-bin/$CODE_SOURCE_DI
+    #     --srcdict data-bin/$CODE_SOURCE_DIR/standard/dict.en.txt \
+
+
+
+fi
