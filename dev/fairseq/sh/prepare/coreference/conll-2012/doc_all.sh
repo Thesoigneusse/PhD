@@ -4,9 +4,11 @@
 src=input
 tgt=output
 lang=$src-$tgt
-DATA=$HOME/PhD/dev/fairseq/data/coreference
+HOME=/home/getalp/lopezfab/PhD
+DATA=$HOME/dev/fairseq/data/coreference
 # orig=/video/getalp/
-orig=$HOME/temp/orig/coreference/CoNLL-2012
+orig=$HOME/../temp/orig/coreference/CoNLL-2012
+
 
 mkdir -p $DATA
 cd $DATA
@@ -71,14 +73,17 @@ if [ $1 = "standard" ]; then
             cp $orig/conll2012.$i.$t $tmp/$t.tok.$i
         done
     done
+    for l in $src $tgt; do 
+        mv $tmp/dev.tok.$l $tmp/valid.tok.$l
+    done
 
     echo "Retrieving Heads ..."
-    for t in "train" "test" "dev"; do
+    for t in "train" "test" "valid"; do
         for i in $src $tgt; do
             python $HEADS --regular-expression="<End-Of-Document>\n" $tmp/$t.tok.$i
 
             mv $tmp/$t.tok.$i $prep/$t.$i
-            mv $tmp/$t.tok.$i.heads $prep/$t.$i.heads
+            mv $tmp/$t.tok.$i.heads $prep/$t.$lang.$i.heads
         done
     done
 
@@ -94,18 +99,20 @@ if [ $1 = "standard" ]; then
     done
 
     # echo "Binarizing data ..."
-    rm -rf data-bin/$prep
-    fairseq-preprocess \
-        --source-lang $src \
-        --target-lang $tgt \
-        --train-pref $prep/train \
-        --test-pref $prep/test \
-        --valid-pref $prep/dev \
-        --joined-dictionary \
-        --dest-dir data-bin/$prep \
-        --workers 8
-    #     --srcdict data-bin/$CODE_SOURCE_DIR/standard/dict.en.txt \
-
-
-
-fi
+    # rm -rf data-bin/$prep
+    # fairseq-preprocess \
+    #     --source-lang $src \
+    #     --target-lang $tgt \
+    #     --trainpref $prep/train \
+    #     --testpref $prep/test \
+    #     --validpref $prep/valid \
+    #     --joined-dictionary \
+    #     --destdir data-bin/$prep \
+    #     --workers 8
+    # for t in "train" "test" "valid"; do
+    #     for l in $src $tgt; do 
+    #         cp $prep/$t.$lang.$l.heads data-bin/$prep/
+    #     done
+    # done
+    #     --srcdict $HOME/dev/fairseq/data/models/roberta/roberta.large/dict.txt \
+    #     --srcdict data-bin/$CODE_SOURCE_DI

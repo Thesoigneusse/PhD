@@ -150,9 +150,10 @@ fi
 if [ -n "$max_src_pos" ]; then max_src_pos=$max_src_pos; else max_src_pos=1024; fi
 if [ -n "$max_tgt_pos" ]; then max_tgt_pos=$max_tgt_pos; else max_tgt_pos=1024; fi
 if [ -n "$need_seg_label" ]; then need_seg_label=$need_seg_label; else need_seg_label=False ; fi
-if [ -n "$context_discount" ]; then context_discount=$context_discount; else context_discount=1 ; fi
+if [ -n "$context_discount" ]; then context_discount=$context_discount; else context_discount=0.01 ; fi
 if [ -n "$path" ]; then checkpoint_path=$path; else checkpoint_path=$checkpoint_path ; fi
 if [ -n "$kind_attention_head" ]; then kind_attention_head=$kind_attention_head; else kind_attention_head="multihead_attention" ; fi
+# if [ -n "$roberta_model" ]; then roberta_model=$roberta_model; else roberta_model="$HOME/PhD/dev/fairseq/fairseq/models/roberta/roberta.large/model.pt"; fi
 
 
 # Run #########################################################################
@@ -187,9 +188,10 @@ then
     --keep-interval-updates $keep_interval_updates \
     --log-format $log_format \
     --log-interval $log_interval \
-    --fp16 \
     --ddp-backend $ddp_backend \
     | tee -a $save_dir/logs/$trainlog.log
+    # --roberta-model $roberta_model \
+    # --fp16 \
     # --max-source-positions $max_src_pos \
     # --max-target-positions $max_tgt_pos \
     # --save-interval-updates $siu \
