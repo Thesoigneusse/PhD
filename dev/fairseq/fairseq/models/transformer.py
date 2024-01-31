@@ -239,7 +239,10 @@ class TransformerModel(FairseqEncoderDecoderModel):
         )
         parser.add_argument(
             '--share-all-embeddings',
-            action='store_true',
+            default=True,
+#             action='store_true',
+            choices=["True", "False"],
+            type=str, metavar='BOOL',
             help='share encoder, decoder and output embeddings'
             ' (requires shared dictionary and embed dim)'
         )
@@ -1137,7 +1140,9 @@ def base_architecture(args):
     args.share_decoder_input_output_embed = getattr(
         args, "share_decoder_input_output_embed", False
     )
-    args.share_all_embeddings = getattr(args, "share_all_embeddings", False)
+    # args.share_all_embeddings = getattr(args, "share_all_embeddings", False)
+    args.share_all_embeddings = utils.eval_bool(getattr(args, "share_all_embeddings", "False"))
+
     args.no_token_positional_embeddings = getattr(
         args, "no_token_positional_embeddings", False
     )
@@ -1221,7 +1226,7 @@ def transformer_wmt_en_de_big_t2t(args):
 def transformer_iwslt_fr_en(args):
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 512)
     args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 1024)
-    args.share_all_embeddings = getattr(args, 'share_all_embeddings', True)
+    args.share_all_embeddings = utils.eval_bool(getattr(args, "share_all_embeddings", "True"))
     args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 8)
     args.encoder_layers = getattr(args, 'encoder_layers', 6)
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 512)
@@ -1236,7 +1241,7 @@ def transformer_iwslt_fr_en(args):
 def transformer_test(args):
     args.encoder_embed_dim = getattr(args, 'encoder_embed_dim', 100)
     args.encoder_ffn_embed_dim = getattr(args, 'encoder_ffn_embed_dim', 100)
-    args.share_all_embeddings = getattr(args, 'share_all_embeddings', False)
+    args.share_all_embeddings = utils.eval_bool(getattr(args, "share_all_embeddings", "False"))
     args.encoder_attention_heads = getattr(args, 'encoder_attention_heads', 2)
     args.encoder_layers = getattr(args, 'encoder_layers', 2)
     args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 100)
@@ -1255,7 +1260,7 @@ def transformer_vaswani_wmt_en_fr(args):
     args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 2048)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 8)
     args.decoder_layers = getattr(args, "decoder_layers", 6)
-    args.share_all_embeddings = getattr(args, 'share_all_embeddings', True)
+    args.share_all_embeddings = utils.eval_bool(getattr(args, "share_all_embeddings", "True"))
     args.dropout = getattr(args, "dropout", 0.1)
     base_architecture(args)
 
@@ -1269,7 +1274,7 @@ def transformer_voita_fairseq(args):
     args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 2048)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 8)
     args.decoder_layers = getattr(args, "decoder_layers", 6)
-    args.share_all_embeddings = getattr(args, 'share_all_embeddings', False)
+    args.share_all_embeddings = utils.eval_bool(getattr(args, "share_all_embeddings", "False"))
     args.dropout = getattr(args, "dropout", 0.3)
     base_architecture(args)
 
@@ -1316,7 +1321,7 @@ def transformer_base_extra_dropout(args):
     args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 2048)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 8)
     args.decoder_layers = getattr(args, "decoder_layers", 6)
-    args.share_all_embeddings = getattr(args, 'share_all_embeddings', True)
+    args.share_all_embeddings = utils.eval_bool(getattr(args, "share_all_embeddings", "True"))
     args.dropout = getattr(args, "dropout", 0.3)
     base_architecture(args)
 
@@ -1330,7 +1335,7 @@ def transformer_vaswani_wmt_zh_en(args):
     args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 2048)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 8)
     args.decoder_layers = getattr(args, "decoder_layers", 6)
-    args.share_all_embeddings = getattr(args, 'share_all_embeddings', False)
+    args.share_all_embeddings = utils.eval_bool(getattr(args, "share_all_embeddings", "False"))
     args.dropout = getattr(args, "dropout", 0.1)
     base_architecture(args)
 
@@ -1345,8 +1350,7 @@ def transformer_vaswani_wmt_en_fr_new_attn(args):
     args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 2048)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 8)
     args.decoder_layers = getattr(args, "decoder_layers", 6)
-    args.share_all_embeddings = getattr(args, 'share_all_embeddings', True)
+    args.share_all_embeddings = utils.eval_bool(getattr(args, "share_all_embeddings", "True"))
     args.dropout = getattr(args, "dropout", 0.1)
-    args.attention_head = getattr(args, "kind_attention_head", "QuietMultiheadAttention")
-
+    args.attention_head = getattr(args, "kind_attention_head", "MultiheadAttention")
     base_architecture(args)

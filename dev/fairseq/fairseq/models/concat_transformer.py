@@ -9,6 +9,8 @@ import sys
 
 import torch
 from torch import Tensor
+import torch.nn.functional as F
+from fairseq.data.data_utils import collate_tokens
 
 from fairseq.models import (
     register_model,
@@ -169,7 +171,7 @@ class ConcatTransformer(TransformerModel):
             )
             decoder_embed_tokens = cls.build_embedding(
                 args, tgt_dict, args.decoder_embed_dim, args.decoder_embed_path
-            )  
+            )
 
         # build (position-)segment embeddings
         if args.pse_segment_dim > 0:
@@ -216,17 +218,22 @@ class ConcatTransformer(TransformerModel):
                 padding_idx=args.seg_padding_idx
             ) if args.use_segment_emb else None
         # segment embeddings are always shared between source and target
-        decoder_embed_segments = encoder_embed_segments          
+        decoder_embed_segments = encoder_embed_segments
 
         # build main blocks
-        encoder = cls.build_encoder(
-            args, src_dict, encoder_embed_tokens, encoder_embed_segments
-        )
+        if hasattr(task, "roberta"):
+            encoder = cls.build_encoder(
+                args, src_dict, encoder_embed_tokens, encoder_embed_segments, _RoBERTa=task.roberta
+            )
+        else:
+            encoder = cls.build_encoder(
+                args, src_dict, encoder_embed_tokens, encoder_embed_segments
+            )
         decoder = cls.build_decoder(
             args, tgt_dict, decoder_embed_tokens, decoder_embed_segments
         )
         return cls(args, encoder, decoder)
-    
+
     @classmethod
     def build_position_segment_embedding(
         cls,
@@ -258,14 +265,15 @@ class ConcatTransformer(TransformerModel):
                 learned=getattr(args, "lrn_segment_emb", False),
                 onehot=getattr(args, "onehot_segment_emb", False),
                 )
-    
+
     @classmethod
-    def build_encoder(cls, args, src_dict, embed_tokens, embed_segments):
+    def build_encoder(cls, args, src_dict, embed_tokens, embed_segments, _RoBERTa=None):
         return ConcatTransformerEncoder(
             args,
             src_dict,
             embed_tokens,
-            embed_segments
+            embed_segments,
+            RoBERTa=_RoBERTa
         )
 
     @classmethod
@@ -311,7 +319,7 @@ class ConcatTransformer(TransformerModel):
 
 class ConcatTransformerEncoder(TransformerEncoder):
 
-    def __init__(self, args, dictionary, embed_tokens, embed_segments):
+    def __init__(self, args, dictionary, embed_tokens, embed_segments, RoBERTa=None):
         super().__init__(args, dictionary, embed_tokens)
         self.analyze_self_attn = bool(args.need_encoder_self_attn)
         self.num_sent = args.num_sent
@@ -323,7 +331,7 @@ class ConcatTransformerEncoder(TransformerEncoder):
             self.persistent_segment_emb = False
             self.persistent_positions = False
         else:
-            # embed position and segment information in different vectors 
+            # embed position and segment information in different vectors
             self.embed_pse = None
             self.persistent_pse = False
             self.embed_segments = embed_segments
@@ -343,7 +351,7 @@ class ConcatTransformerEncoder(TransformerEncoder):
                 logger.info("shifting positions of %s units after every <SEP>", self.position_shift)
             elif self.position_shift == -1:
                 logger.info("shifting positions of average sentence length after every <SEP>")
-        
+        self.roberta = RoBERTa
         # logging relevant info
         if self.persistent_pse:
             logger.info("pse are persistent througout encoder layers")
@@ -361,9 +369,21 @@ class ConcatTransformerEncoder(TransformerEncoder):
         po_segment_labels: Optional[Tensor] = None,
         ):
 
+        # Utilisation de l'encodage de RoBERTa
+        if hasattr(self, 'roberta') and self.roberta is not None:
+            x_device = src_tokens.device
+
+            src_tokens = [ self.roberta.encode( self.dictionary.string(t) ) for t in src_tokens ]
+            src_tokens = collate_tokens( src_tokens, self.dictionary.pad() ).to(x_device)
+
+            trs_x = self.roberta.extract_features( src_tokens, return_all_hiddens=True )
+
+            trs_x = torch.stack( trs_x[-4:], dim=-1 )
+            trs_x = torch.mean( trs_x, dim=3 )
+            trs_x = F.dropout(trs_x, p=self.dropout_module.p, training=self.training)
+
         # embed tokens
         x = encoder_embedding = self.embed_scale * self.embed_tokens(src_tokens)
-
         if self.embed_pse is not None:
             # embed segments and positions in a single vector
             pse = self.embed_pse(src_tokens, src_segment_labels)
@@ -567,7 +587,7 @@ class ConcatTransformerDecoder(TransformerDecoder):
             self.persistent_segment_emb = False
             self.persistent_positions = False
         else:
-            # embed position and segment information in different vectors 
+            # embed position and segment information in different vectors
             self.embed_pse = None
             self.persistent_pse = False
             self.embed_segments = embed_segments
@@ -582,7 +602,7 @@ class ConcatTransformerDecoder(TransformerDecoder):
                     padding_idx=embed_tokens.padding_idx,
                     learned=args.decoder_learned_pos,
                 )
-        
+
         if self.persistent_pse:
             logger.info("pse are persistent througout decoder layers")
         if self.persistent_segment_emb:
@@ -771,8 +791,8 @@ class ConcatTransformerDecoder(TransformerDecoder):
                     need_head_weights=bool((idx == alignment_layer)),
                 )
             inner_states.append(x)
-        
-        
+
+
         if self.layer_norm is not None:
             x = self.layer_norm(x)
 
@@ -816,7 +836,7 @@ def label_segments(
                 segment_labels[i] = nsents[i]
 
     return segment_labels
-    
+
 ###############################################################################
 
 @register_model_architecture("concat_transformer", "concat_test")
@@ -954,15 +974,15 @@ def concat_vaswani_wmt_en_fr(args):
     transformer_vaswani_wmt_en_fr(args)
 
 @register_model_architecture("concat_transformer", "concat_vaswani_wmt_zh_en")
-def concat_vaswani_wmt_en_fr(args):
+def concat_vaswani_wmt_zh_en(args):
     # concat args
     args.use_segment_emb = getattr(args, "use_segment_emb", False)
     args.lrn_segment_emb = getattr(args, "lrn_segment_emb", False)
     args.onehot_segment_emb = getattr(args, "onehot_segment_emb", False)
     args.persistent_positions = getattr(args, "persistent_positions", False)
     args.persistent_segment_emb = getattr(args, "persistent_segment_emb", False)
-    # other args
     transformer_vaswani_wmt_zh_en(args)
+    # other args
 
 @register_model_architecture("concat_transformer", "concat_segshift_vaswani_wmt_en_fr")
 def concat_segshift_vaswani_wmt_en_fr(args):
