@@ -63,64 +63,15 @@ class ConcatTransformer(TransformerModel):
         """Add model-specific arguments to the parser."""
         # fmt: off
         TransformerModel.add_args(parser)
-        parser.add_argument(
-            '--segment-shifted-positions',
-            action='store_true',
-            help='shift positions of --position-shift (below) after the end of '
-                'a segment of the concatenated input sequence, i.e., after a <SEP> token'
-        )
-        parser.add_argument(
-            '--position-shift',
-            type=int,
-            default=0,
-            help='if --segment-shifted-positions, shift positions '
-                 'of --position-shift after the end of a segment of '
-                 'the concatenated input sequence, i.e., after a <SEP> token.'
-                 'If position_shift=-1, then shift is equal to the average length'
-                 'of the sentences belonging to the concatenated source sequence.'
-        )
-        parser.add_argument(
-            '--use-segment-emb',
-            action='store_true',
-            help='use segment embeddings, sinusoidal by default'
-        )
-        parser.add_argument(
-            '--lrn-segment-emb',
-            action='store_true',
-            help='learn segment embeddings'
-        )
-        parser.add_argument(
-            '--onehot-segment-emb',
-            action='store_true',
-            help='learn segment embeddings'
-        )
-        parser.add_argument(
-            '--pse-segment-dim',
-            type=int,
-            default=0,
-            help='fuse position and segment embeddings in a single vector'
-                '(pse) of size embedding_dim. Segment indices are encoded'
-                'in the last pse_segment_dim dimensions of such vector,'
-                'while the remaining dimensions are dedicated to positions'
-        )
-        parser.add_argument(
-            '--persistent-positions',
-            action='store_true',
-            help='add position embeddings to the input of every layer'
-                ' instead of the first layer only'
-        )
-        parser.add_argument(
-            '--persistent-segment-emb',
-            action='store_true',
-            help='add segment embeddings to the input of every layer'
-                ' instead of the first layer only'
-        )
-        parser.add_argument(
-            '--persistent-pse',
-            action='store_true',
-            help='add pse to the input of every layer'
-                ' instead of the first layer only'
-        )
+        parser.add_argument('--segment-shifted-positions', action='store_true', help='shift positions of --position-shift (below) after the end of '     'a segment of the concatenated input sequence, i.e., after a <SEP> token')
+        parser.add_argument('--position-shift', type=int, default=0, help='if --segment-shifted-positions, shift positions '      'of --position-shift after the end of a segment of '      'the concatenated input sequence, i.e., after a <SEP> token.'      'If position_shift=-1, then shift is equal to the average length'      'of the sentences belonging to the concatenated source sequence.')
+        parser.add_argument('--use-segment-emb', action='store_true', help='use segment embeddings, sinusoidal by default')        
+        parser.add_argument('--lrn-segment-emb', action='store_true', help='learn segment embeddings')        
+        parser.add_argument('--onehot-segment-emb', action='store_true', help='learn segment embeddings')        
+        parser.add_argument('--pse-segment-dim', type=int, default=0, help='fuse position and segment embeddings in a single vector'     '(pse) of size embedding_dim. Segment indices are encoded'     'in the last pse_segment_dim dimensions of such vector,'     'while the remaining dimensions are dedicated to positions')        
+        parser.add_argument('--persistent-positions', action='store_true', help='add position embeddings to the input of every layer'     ' instead of the first layer only')        
+        parser.add_argument('--persistent-segment-emb', action='store_true', help='add segment embeddings to the input of every layer'     ' instead of the first layer only')        
+        parser.add_argument('--persistent-pse', action='store_true', help='add pse to the input of every layer'     ' instead of the first layer only')        
         # fmt: on
 
     @classmethod
@@ -369,21 +320,40 @@ class ConcatTransformerEncoder(TransformerEncoder):
         po_segment_labels: Optional[Tensor] = None,
         ):
 
+        # print(self.roberta.decode(src_tokens[0].cpu()))
+        # print(self.roberta.decode(src_tokens[1].cpu()))
+        # print(self.roberta.decode(src_tokens[2].cpu()))
+
         # Utilisation de l'encodage de RoBERTa
         if hasattr(self, 'roberta') and self.roberta is not None:
             x_device = src_tokens.device
+            # src_tokens = [ self.roberta.encode( self.dictionary.string(t) ) for t in src_tokens ]
+            # src_tokens = collate_tokens( src_tokens, self.dictionary.pad() ).to(x_device)
 
-            src_tokens = [ self.roberta.encode( self.dictionary.string(t) ) for t in src_tokens ]
-            src_tokens = collate_tokens( src_tokens, self.dictionary.pad() ).to(x_device)
+            ## Already done in sent2doc_dataset.py
+            # print(f"[DEBUG] **********************extract feature: \n{self.roberta.extract_features.__code__.co_varnames[:self.roberta.extract_features.__code__.co_argcount]}\n*******************************")
+            trs_x = self.roberta.extract_features( src_tokens, return_all_hiddens=True)
 
-            trs_x = self.roberta.extract_features( src_tokens, return_all_hiddens=True )
-
+            # print(f"[DEBUG] src_tokens.size: {[x.size() for x in src_tokens]}")
+            # print(f"[DEBUG] trs_x.size: {[x.size() for x in trs_x]}")
             trs_x = torch.stack( trs_x[-4:], dim=-1 )
+            # print(f"[AFTER] trs_x.size: {[x.size() for x in trs_x]}")
             trs_x = torch.mean( trs_x, dim=3 )
             trs_x = F.dropout(trs_x, p=self.dropout_module.p, training=self.training)
-
+            x = encoder_embedding = trs_x
+        else:
+            
+            x = encoder_embedding = self.embed_scale * self.embed_tokens(src_tokens)
+            print(f"[DEBUG] type(x): {type(x)}")
+            print(f"[DEBUG] x.size: {x.size()}")
         # embed tokens
-        x = encoder_embedding = self.embed_scale * self.embed_tokens(src_tokens)
+        # print("***********************************************")
+        # 
+        # print(f"[DEBUG]dim de trs_x : {trs_x.dim()}")
+        # print(f"[DEBUG]trs_x : {trs_x}")
+        # print(f"[DEBUG]dim de x : {x.dim()}")
+        # print(f"[DEBUG]x : {x}")
+        # print("-----------------------------------------------")
         if self.embed_pse is not None:
             # embed segments and positions in a single vector
             pse = self.embed_pse(src_tokens, src_segment_labels)
@@ -405,6 +375,9 @@ class ConcatTransformerEncoder(TransformerEncoder):
                     )
                 else:
                     positions = self.embed_positions(src_tokens)
+                # print(f"[DEBUG]x size: {x.size()}")
+                # print(f"[DEBUG]position.size: {positions.size()}")
+                sys.stdout.flush()
                 x += positions
             # embed segments
             if self.embed_segments is not None:
@@ -418,7 +391,11 @@ class ConcatTransformerEncoder(TransformerEncoder):
 
         if self.quant_noise is not None:
             x = self.quant_noise(x)
+        
 
+        # B : batch
+        # T : longueur de la séquence
+        # C : features (512)
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
         if self.persistent_pse:
@@ -1048,5 +1025,9 @@ def concat_vaswani_wmt_en_fr_new_attn(args):
     args.onehot_segment_emb = getattr(args, "onehot_segment_emb", False)
     args.persistent_positions = getattr(args, "persistent_positions", False)
     args.persistent_segment_emb = getattr(args, "persistent_segment_emb", False)
+    ## TEST
+    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 1024)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 1024)
+
     # other args
     transformer_vaswani_wmt_en_fr_new_attn(args)

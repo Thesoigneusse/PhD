@@ -156,14 +156,12 @@ class Doc2DocTranslation(TranslationTask):
 
         # Ajout pour incorporer un modèle Roberta
         # print(f"************************\n[DEBUG]self.args.roberta_model: {self.args.roberta_model}")
-        if hasattr(self, "roberta_model") and self.args.roberta_model is not None :
-            if 'camembert' in self.args.roberta_model:
-                self.roberta = CamembertModel.from_pretrained( self.args.roberta_model ) 
-            else:
-                tokens = self.args.roberta_model.split('/')
-                mpath = '/'.join(tokens[:-1]) + '/'
-                mmodel = tokens[-1]
-                self.roberta = RobertaModel.from_pretrained(mpath, checkpoint_file=mmodel)
+        if hasattr(self.args, "roberta_model") and self.args.roberta_model is not None :
+            tokens = self.args.roberta_model.split('/')
+            mpath = '/'.join(tokens[:-1]) + '/'
+            mmodel = tokens[-1]
+            # print("[DEBUG] loading Roberta from: {mpath}/{mmodel}")
+            self.roberta = RobertaModel.from_pretrained(mpath, checkpoint_file=mmodel)
             if not hasattr(self.args, 'tune_ssl') or not self.args.tune_ssl:
                 self.roberta = self.roberta.eval()
                 for param in self.roberta.parameters():
@@ -187,7 +185,7 @@ class Doc2DocTranslation(TranslationTask):
         parser.add_argument('--need-cross-attn',type=int,default=0,help='if >1, retrieve decoder attention weights to analyze them')
 
         # Allow to use a Roberta model to encode transcription
-        parser.add_argument('--roberta-model', type=str, help='Specify an absolute path to a Roberta model used to encode transcriptions. Choice : "base", "None"')
+        parser.add_argument('--roberta-model', default=None, type=str, help='Specify an absolute path to a Roberta model used to encode transcriptions. Choice : "base", "None"')
         parser.add_argument('--tune-ssl', action='store_true', default=False, help='Tune the roberta model specified with --roberta-model (by default it is freezed)')
         parser.add_argument('--load-dictionary', type=str,help='Load the dictionary for the task symbols from the specified file (e.g. to perform transfer learning)')
 
@@ -214,14 +212,17 @@ class Doc2DocTranslation(TranslationTask):
             )
 
         # load dictionaries
+        logger.info(f"[Loading dictionary] ...")
         if args.load_dictionary:
             # Only affect src dictionary
-            print(f"[DEBUG] load src dictionary from {args.load_dictionary}")
+            logger.info(f"[Loading Dictionary] Load src dictionary from {args.load_dictionary}")
             src_dict = cls.load_dictionary(args.load_dictionary)
         else:
+            logger.info(f"[Loading Dictionary] Load src dictionary from {os.path.join(paths[0], 'dict.{}.txt'.format(args.source_lang))}")
             src_dict = cls.load_dictionary(
                 os.path.join(paths[0], 'dict.{}.txt'.format(args.source_lang))
             )
+        logger.info(f"[Loading Dictionary] Load tgt dictionary from {os.path.join(paths[0], 'dict.{}.txt'.format(args.target_lang))}")
         tgt_dict = cls.load_dictionary(
             os.path.join(paths[0], 'dict.{}.txt'.format(args.target_lang))
         )
@@ -241,12 +242,12 @@ class Doc2DocTranslation(TranslationTask):
             tgt_dict.add_symbol('<CNT>')  # not end in the previous sequence
 
         logger.info(
-            '[{}] dictionary: {} types'.format(args.source_lang, len(src_dict))
+            '[Loading Dictionary] [{}] dictionary: {} types'.format(args.source_lang, len(src_dict))
         )
         logger.info(
-            '[{}] dictionary: {} types'.format(args.target_lang, len(tgt_dict))
+            '[Loading Dictionary] [{}] dictionary: {} types'.format(args.target_lang, len(tgt_dict))
         )
-
+        logger.info("[Loading dictionary] Ended")
         return cls(args, src_dict, tgt_dict)
 
     def load_dataset(self, split, epoch=1, combine=False, **kwargs):

@@ -51,9 +51,12 @@ def count_errors(
     readlines =0
 
     for count, sentence in enumerate(reference):
-        #print(count)
-        score = float(scores.readline())
-
+        try:
+            score = float(scores.readline())
+        except ValueError:
+            print("[DEBUG] scores.readline(): '{}'".format(scores.readline()))
+            print("[DEBUG] readlines: {}".format(readlines))
+            score = ""
         readlines +=1
 
         all_better = True
@@ -68,7 +71,7 @@ def count_errors(
         intrasegmental = sentence['intrasegmental'] ## can be true, false or null (in this case will be returned as None)
         results['by_intrasegmental'][intrasegmental]['total'] +=1
         for error in sentence['errors']:
-            errorscore = float(scores.readline())
+            errorscore = score
             readlines +=1
             if not better(score, errorscore):
                     all_better = False
@@ -204,6 +207,6 @@ if __name__ == '__main__':
     # read/write files as UTF-8
     args.reference = codecs.open(args.reference.name, encoding='utf-8')
 
-    #enc = sys.getdefaultencoding()
-    #print('enc:', enc)
+    # enc = sys.getdefaultencoding()
+    # print('enc:', enc)
     main(args.reference, args.scores, args.maximize, args.results_file, args.results_by_d, args.verbose)
