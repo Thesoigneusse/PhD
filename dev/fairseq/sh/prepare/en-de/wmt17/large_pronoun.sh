@@ -29,7 +29,7 @@ DICTIONARY_DIR=wmt17/standard
 INSERT=../../scripts/insert_lines.py
 TOOLS=../../tools
 SCRIPTS=$TOOLS/mosesdecoder/scripts
-orig=test_suites/ContraPro
+orig=ContraPro
 if [ $shuffle = "True" ]; then append=.shuffled; else append= ; fi
 prep=wmt17/test_suites/large_pronoun/k$c$append
 
@@ -43,34 +43,34 @@ HEADS=../../scripts/retrieve_doc_heads.py
 
 # Setting utils ###############################################################
 
-echo 'Looking for test suite github repository...'
-if [ -d "$orig" ]; then
-  echo "test suite github repository was already cloned here."
-else
-  echo "cloning ContraPro and downloading data, this will take several minutes"
-  git clone https://github.com/ZurichNLP/ContraPro
-  cd ContraPro
-  ./setup_opensubs.sh
-  perl conversion_scripts/json2text_and_context.pl --source $src --target $tgt \
-  --dir documents --json contrapro.json --context $c
-  cd ..
-fi
+# echo 'Looking for test suite github repository...'
+# if [ -d "$orig" ]; then
+#   echo "test suite github repository was already cloned here."
+# else
+#   echo "cloning ContraPro and downloading data, this will take several minutes"
+#   git clone https://github.com/ZurichNLP/ContraPro
+#   cd ContraPro
+#   ./setup_opensubs.sh
+#   perl conversion_scripts/json2text_and_context.pl --source $src --target $tgt \
+#   --dir documents --json contrapro.json --context $c
+#   cd ..
+# fi
 
-echo 'Looking for Moses github repository (for tokenization scripts)...'
-if [ -d "$SCRIPTS" ]; then
-  echo "Moses repo was already cloned here."
-else
-  echo 'Cloning Moses github repository.'
-  git clone https://github.com/moses-smt/mosesdecoder.git $TOOLS/
-fi
+# echo 'Looking for Moses github repository (for tokenization scripts)...'
+# if [ -d "$SCRIPTS" ]; then
+#   echo "Moses repo was already cloned here."
+# else
+#   echo 'Cloning Moses github repository.'
+#   git clone https://github.com/moses-smt/mosesdecoder.git $TOOLS/
+# fi
 
-echo 'Looking for Subword NMT repository (for BPE pre-processing)...'
-if [ -d "$BPEROOT" ]; then
-  echo "Subword NMT repo was already cloned here."
-else
-  echo 'Cloning Subword NMT repository.'
-  git clone https://github.com/rsennrich/subword-nmt.git $TOOLS/
-fi
+# echo 'Looking for Subword NMT repository (for BPE pre-processing)...'
+# if [ -d "$BPEROOT" ]; then
+#   echo "Subword NMT repo was already cloned here."
+# else
+#   echo 'Cloning Subword NMT repository.'
+#   git clone https://github.com/rsennrich/subword-nmt.git $TOOLS/
+# fi
 
 # Preprocessing ###############################################################
 get_seeded_random()

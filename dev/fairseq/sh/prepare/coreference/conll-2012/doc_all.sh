@@ -98,23 +98,23 @@ if [ $1 = "standard" ]; then
         echo
     done
 
-    # echo "Binarizing data ..."
-    # rm -rf data-bin/$prep
-    # fairseq-preprocess \
-    #     --source-lang $src \
-    #     --target-lang $tgt \
-    #     --trainpref $prep/train \
-    #     --testpref $prep/test \
-    #     --validpref $prep/valid \
-    #     --joined-dictionary \
-    #     --destdir data-bin/$prep \
-    #     --workers 8
-    # for t in "train" "test" "valid"; do
-    #     for l in $src $tgt; do 
-    #         cp $prep/$t.$lang.$l.heads data-bin/$prep/
-    #     done
-    # done
-    #     --srcdict $HOME/dev/fairseq/data/models/roberta/roberta.large/dict.txt \
+    echo "Binarizing data ..."
+    rm -rf data-bin/$prep
+    fairseq-preprocess \
+        --source-lang $src \
+        --target-lang $tgt \
+        --trainpref $prep/train \
+        --testpref $prep/test \
+        --validpref $prep/valid \
+        --joined-dictionary \
+        --destdir data-bin/$prep \
+        --workers 8
+    for t in "train" "test" "valid"; do
+        for l in $src $tgt; do 
+            cp $prep/$t.$lang.$l.heads data-bin/$prep/
+        done
+    done
+        # --srcdict $HOME/dev/fairseq/data/models/roberta/roberta.large/dict.txt \
     #     --srcdict data-bin/$CODE_SOURCE_DIR/standard/dict.en.txt \
 
 
