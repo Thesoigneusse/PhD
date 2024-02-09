@@ -58,12 +58,12 @@ bash $LORENZO_CODE/sh/run/coreference/conll-2012/concat.sh --t=train \
     --ncheckpoints=5 \
     --dropout=0.3 \
     --patience=2 \
-    --max_tokens=500 --update_freq=1  \
+    --max_tokens=200 --update_freq=1  \
     --kind_attention_head="multihead_attention" \
-    --roberta_model="$HOME/dev/fairseq/data/models/roberta/roberta.large/model.pt" \
-    --share_all_embeddings=False \
     --fp16 \
     --mode=slide_n2n --opt=num-sent --val=4 --need_seg_label=True
+    # --roberta_model="$HOME/dev/fairseq/data/models/roberta/roberta.large/model.pt" \
+    # --share_all_embeddings=False \
 # --pretrained="$HOME/checkpoints/en-de/baseline_transformer_en_fr.en-de.SL" \
 
 # bash $LORENZO_CODE/sh/slurm/en-de/temp_naver-submit-transfo.slurm
