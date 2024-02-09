@@ -1,5 +1,7 @@
+.cache/
 dev/fairseq/data/
 dev/fairseq/tools/
+dev/fairseq/fairseq/__pycache__/
 dev/fairseq/fairseq/models/__pycache__/
 dev/fairseq/fairseq/modules/__pycache__/
 dev/fairseq/fairseq/tasks/__pycache__/
