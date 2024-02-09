@@ -1,1 +1,11 @@
+.cache/
 dev/fairseq/data/
+dev/fairseq/tools/
+dev/fairseq/fairseq/__pycache__/
+dev/fairseq/fairseq/models/__pycache__/
+dev/fairseq/fairseq/modules/__pycache__/
+dev/fairseq/fairseq/tasks/__pycache__/
+dev/fairseq/fairseq_cli/__pycache__/
+dev/Utils/Scripts/convert/conll2seqtoseq/__pycache__/
+checkpoints/
+output.txt
