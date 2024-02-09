@@ -33,13 +33,14 @@ do
         declare $v="${value}" 
    fi
 done
-
+HOME=/home/getalp/lopezfab/PhD
+FAIRSEQ=$HOME/dev/fairseq
 # Global variables
 if [ -n "$src" ]; then src=$src ; else src=en ; fi
 if [ -n "$tgt" ]; then tgt=$tgt ; else tgt=de ; fi
 if [ -n "$corpus" ]; then corpus=$corpus ; else corpus=iwslt17 ; fi
 if [ -n "$lang" ]; then lang=$lang; else lang=$src-$tgt ; fi
-if [ -n "$this_script" ]; then this_script=$this_script; else this_script=sh/run/$lang/$corpus/concat.sh ; fi
+if [ -n "$this_script" ]; then this_script=$this_script; else this_script=$HOME/dev/fairseq/sh/run/$lang/$corpus/concat.sh ; fi
 
 # Common
 if [ -n "$cuda" ] ; then export CUDA_VISIBLE_DEVICES=$cuda ; fi
@@ -48,7 +49,7 @@ if [ -n "$num_workers" ]; then num_workers=$num_workers ; else num_workers=8 ; f
 if [ -n "$ddp_backend" ]; then ddp_backend=$ddp_backend ; else ddp_backend=c10d ; fi
 
 # Data
-if [ -n "$data_dir" ]; then data_dir=$data_dir; else data_dir=data/$lang/data-bin/$corpus/standard ; fi
+if [ -n "$data_dir" ]; then data_dir=$data_dir; else data_dir=$HOME/dev/fairseq/data/$lang/data-bin/$corpus/standard ; fi
 if [ -n "$max_tokens" ]; then max_tokens=$max_tokens ; else max_tokens=4000; fi
 if [ -n "$update_freq" ]; then update_freq=$update_freq ; else update_freq=1; fi
 
@@ -75,7 +76,8 @@ if [ -n "$warmup_init_lr" ]; then warmup_init_lr=$warmup_init_lr ; else warmup_i
 if [ -n "$end_learning_rate" ]; then end_learning_rate=$end_learning_rate ; else end_learning_rate=1e-09 ; fi
 
 # Checkpoints
-if [[ $save_dir != "checkpoints/"* ]]; then save_dir=checkpoints/$lang/$corpus/$save_dir; fi
+#if [[ $save_dir != "checkpoints/"* ]]; then save_dir=checkpoints/$lang/$corpus/$save_dir; fi
+if [ -n "$save_dir" ]; then save_dir=$save_dir ; else save_dir=checkpoints/$lang/$corpus ; fi
 if [ -n "$ncheckpoints" ]; then ncheckpoints=$ncheckpoints ; else ncheckpoints=5 ; fi
 if [ -n "$patience" ]; then patience=$patience ; else patience=12 ; fi
 if [ -n "$max_update"]; then max_update=$max_update ; else max_update=0 ; fi
@@ -304,7 +306,7 @@ then
     grep ^T $save_dir/logs/$testlog.log | sed 's/^T-//g' | sort -nk 1 | cut -f2- | sacremoses detokenize > $save_dir/logs/$testlog.out.ref
     grep ^H $save_dir/logs/$testlog.log | sed 's/^H-//g' | sort -nk 1 | cut -f3- | sacremoses detokenize > $save_dir/logs/$testlog.out.sys
     # score
-    tools/mosesdecoder/scripts/generic/multi-bleu-detok.perl $save_dir/logs/$testlog.out.ref < $save_dir/logs/$testlog.out.sys | tee $save_dir/logs/$testlog.result
+    /home/getalp/lopezfab/PhD/dev/fairseq/tools/mosesdecoder/scripts/generic/multi-bleu-detok.perl $save_dir/logs/$testlog.out.ref < $save_dir/logs/$testlog.out.sys | tee $save_dir/logs/$testlog.result
     cat $save_dir/logs/$testlog.result
 ###############################################################################
 elif [ $t = "score-ref" ]
@@ -326,25 +328,38 @@ then
 elif [ $t = "test-suites" ]
 then
     # evaluate on test-set
-    bash $this_script --t=test --save_dir=$save_dir --data_dir=$data_dir --cuda=$cuda --lenpen=$lenpen --mover=$mover --mode=$mode --opt=$opt --val=$val --scored_checkpoint=$scored_checkpoint --need_seg_label=$need_seg_label --log_prefix=$log_prefix
+    #bash $this_script --t=test --save_dir=$save_dir --data_dir=$data_dir --cuda=$cuda --lenpen=$lenpen --mover=$mover --mode=$mode --opt=$opt --val=$val --scored_checkpoint=$scored_checkpoint --need_seg_label=$need_seg_label --log_prefix=$log_prefix --path=$checkpoint_path
+
     # evaluate on large pronouns test suite (original and with shuffled context)
-    test_suites=~/dev/fairseq/data/$lang/data-bin/wmt17/test_suites
+    test_suites=$FAIRSEQ/data/$lang/data-bin/wmt17/test_suites
     for s in ""; do
         data_dir=$test_suites/large_pronoun/k3$s
         d=large_pronoun$s
         # score reference
-        bash $this_script --t=score-ref --save_dir=$save_dir --data_dir=$test_suites/large_pronoun/k3$s --testlog=$d --cuda=$cuda --mover=$mover --mode=$mode --opt=$opt --val=$val --scored_checkpoint=$scored_checkpoint --batch_size=32 --need_seg_label=$need_seg_label --log_prefix=$log_prefix       # --mover="{'n_context_sents':'1'}"
+        bash $this_script --t=score-ref \
+            --save_dir=$save_dir \
+            --data_dir=$test_suites/large_pronoun/k3$s \
+            --testlog=$d \
+            --cuda=$cuda \
+            --mover=$mover \
+            --mode=$mode \
+            --path=$checkpoint_path \
+            --opt=$opt --val=$val \
+            --batch_size=32 \
+            --need_seg_label=$need_seg_label \
+            --log_prefix=$log_prefix
+            # --mover="{'n_context_sents':'1'}"
+            #--scored_checkpoint=$scored_checkpoint \
         # evaluate
         echo "extract scores for $d..."
         if [ $mode = 'slide_n2n' ] || [ $mode = 'slide_n2one' ] 
         then
-        grep ^H $save_dir/logs/$checkpoint_prefix$d.log | sed 's/^H-//g' | sort -nk 1 | awk 'NR % 4 == 0' | cut -f2 > $save_dir/logs/$checkpoint_prefix$d.score 
-        else
+        grep ^H $save_dir/logs/$checkpoint_prefix$d.log | sed 's/^H-//g' | sort -nk 1 | awk 'NR % 4 == 0' | cut -f2 > $save_dir/logs/$checkpoint_prefix$d.scores
         grep ^H $save_dir/logs/$checkpoint_prefix$d.log | sed 's/^H-//g' | sort -nk 1 | cut -f2 > $save_dir/logs/$checkpoint_prefix$d.score
         fi
         echo "evaluate model performance on test-suite by comparing scores..."
-        contrapro=data/$lang/ContraPro
-        python3 scripts/evaluate_contrapro.py --reference $contrapro/contrapro.json --scores $save_dir/logs/$checkpoint_prefix$d.score --maximize --results-file $save_dir/logs/$checkpoint_prefix$d.results > $save_dir/logs/$checkpoint_prefix$d.result
+        contrapro=$FAIRSEQ/data/$lang/ContraPro
+        python3 $FAIRSEQ/scripts/evaluate_contrapro.py --reference $contrapro/contrapro.json --scores $save_dir/logs/$checkpoint_prefix$d.score --maximize --results-file $save_dir/logs/$checkpoint_prefix$d.results > $save_dir/logs/$checkpoint_prefix$d.result
     done
     # print results
     bash $this_script --t=results --save_dir=$save_dir --mode=$mode --opt=$opt --val=$val --scored_checkpoint=$scored_checkpoint

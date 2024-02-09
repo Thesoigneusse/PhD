@@ -153,7 +153,7 @@ if [ -n "$need_seg_label" ]; then need_seg_label=$need_seg_label; else need_seg_
 if [ -n "$context_discount" ]; then context_discount=$context_discount; else context_discount=0.01 ; fi
 if [ -n "$path" ]; then checkpoint_path=$path; else checkpoint_path=$checkpoint_path ; fi
 if [ -n "$kind_attention_head" ]; then kind_attention_head=$kind_attention_head; else kind_attention_head="multihead_attention" ; fi
-if [ -n "$roberta_model" ]; then roberta_model=$roberta_model; else roberta_model="$HOME/PhD/dev/fairseq/fairseq/models/roberta/roberta.large/model.pt"; fi
+if [ -n "$roberta_model" ]; then roberta_model=$roberta_model; else roberta_model="$HOME/dev/fairseq/data/models/roberta/roberta.large"; fi
 if [ -n "$share_all_embeddings" ]; then share_all_embeddings=$share_all_embeddings; else share_all_embeddings=True; fi
 
 echo "share_all_embeddings = $share_all_embeddings"
@@ -176,7 +176,6 @@ then
     --pse-segment-dim $pse_segment_dim \
     --position-shift $position_shift \
     --dropout $dropout \
-    --load-dictionary "$HOME/dev/fairseq/data/models/roberta/roberta.large/dict.txt" \
     --criterion $criterion --label-smoothing $label_smoothing --weight-decay $weight_decay \
     --optimizer adam --adam-betas "(0.9, 0.98)" \
     --lr-scheduler $lr_scheduler --lr $lr --warmup-updates $warmup_updates --warmup-init-lr $warmup_init_lr --min-lr $min_lr \
@@ -191,7 +190,8 @@ then
     --log-format $log_format \
     --log-interval $log_interval \
     --ddp-backend $ddp_backend \
-    --roberta-model $roberta_model \
+    --load-dictionary "$roberta_model/dict.txt" \
+    --roberta-model $roberta_model/model.pt \
     | tee -a $save_dir/logs/$trainlog.log
     # --fp16 \
     # --max-source-positions $max_src_pos \
