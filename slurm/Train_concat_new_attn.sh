@@ -59,7 +59,7 @@ bash $LORENZO_CODE/sh/run/en-de/iwslt17/concat.sh --t=train \
     --dropout=0.3 \
     --patience=2 \
     --max_tokens=500 --update_freq=1  \
-    --kind_attention_head="multihead_attention" \
+    --quiet_attention="True" \
     --fp16 \
     --mode=slide_n2n --opt=num-sent --val=4 --need_seg_label=True \
     tee $OUTPUT/concat.en-de.test.txt

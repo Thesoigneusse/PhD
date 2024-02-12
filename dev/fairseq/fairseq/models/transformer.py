@@ -163,12 +163,12 @@ class TransformerModel(FairseqEncoderDecoderModel):
         parser.add_argument('--quant-noise-pq-block-size', type=int, metavar='D', default=8, help='block size of quantization noise at training time'        )
         parser.add_argument('--quant-noise-scalar', type=float, metavar='D', default=0, help= 'scalar quantization noise and scalar quantization at training time'        )
         parser.add_argument(
-            '--kind-attention-head',
-            default='multihead_attention',
+            '--quiet-attention',
+            default='False',
             help='Change the kind of attention used.'
-                 'multihead_attention: (DEFAULT) use the usual multihead_attention'
-                 'quiet_multihead_attention: use a modified softmax to allow for no attention decision',
-            choices=['multihead_attention', 'quiet_multihead_attention']
+                 'False: (DEFAULT) use the usual multihead_attention'
+                 'True: use a modified softmax to allow for no attention decision',
+            choices=['True', 'False']
         )
         # fmt: on
 
@@ -1179,5 +1179,5 @@ def transformer_vaswani_wmt_en_fr_new_attn(args):
     args.decoder_layers = getattr(args, "decoder_layers", 6)
     args.share_all_embeddings = utils.eval_bool(getattr(args, "share_all_embeddings", "True"))
     args.dropout = getattr(args, "dropout", 0.1)
-    args.attention_head = getattr(args, "kind_attention_head", "MultiheadAttention")
+    args.attention_head = utils.eval_bool(getattr(args, "quiet_attention", "False"))
     base_architecture(args)
