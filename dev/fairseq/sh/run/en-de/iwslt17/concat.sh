@@ -167,6 +167,7 @@ then
     --$opt $val \
     --need-seg-label $need_seg_label \
     --context-discount $context_discount \
+    --original-loss-for-stopping \
     --arch $arch \
     --pse-segment-dim $pse_segment_dim \
     --position-shift $position_shift \
@@ -185,7 +186,6 @@ then
     --fp16 \
     --ddp-backend $ddp_backend \
     | tee -a $save_dir/logs/$trainlog.log
-    # --original-loss-for-stopping \
     # --max-source-positions $max_src_pos \
     # --max-target-positions $max_tgt_pos \
     # --save-interval-updates $siu \

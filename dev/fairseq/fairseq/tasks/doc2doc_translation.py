@@ -441,8 +441,10 @@ class Doc2DocTranslation(TranslationTask):
                         # in the logging, we call "loss" the undiscounted loss
                         # so that this loss will be used as a stopping criterion
                         # instead of the actual (discounted) loss
-                        logging_output['weighted_loss'] = loss.data
-                        logging_output['loss'] = logging_output['full_loss']
+                        # logging_output['weighted_loss'] = loss.data
+                        # logging_output['loss'] = logging_output['full_loss']
+                        logging_output['weighted_loss'] = logging_output['full_loss']
+                        logging_output['loss'] = loss.data
                     else:
                         logging_output['loss']=loss.data
         else:
