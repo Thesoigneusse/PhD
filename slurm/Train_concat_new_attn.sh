@@ -43,11 +43,12 @@ echo "Lancement de l'environnement..."
 
 # conda activate PhD
 # echo $PATH
+
+
 echo "Environnement lancé"
 
 echo " "
 echo "Execution de la commande..."
-
 
 bash $LORENZO_CODE/sh/run/en-de/iwslt17/concat.sh --t=train \
     --data_dir=$DATA/data-bin/nei/lupo/standard \
@@ -61,8 +62,9 @@ bash $LORENZO_CODE/sh/run/en-de/iwslt17/concat.sh --t=train \
     --max_tokens=500 --update_freq=1  \
     --kind_attention_head="multihead_attention" \
     --fp16 \
-    --mode=slide_n2n --opt=num-sent --val=4 --need_seg_label=True \
-    tee $OUTPUT/concat.en-de.test_extract_attn
+    --mode=slide_n2n --opt=num-sent --val=4 --need_seg_label=True
+
+
 # --pretrained="$HOME/checkpoints/en-de/baseline_transformer_en_fr.en-de.SL" \
 
 # bash $LORENZO_CODE/sh/slurm/en-de/temp_naver-submit-transfo.slurm
