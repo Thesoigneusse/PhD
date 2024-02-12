@@ -5,7 +5,7 @@
 
 __DEBUG__ = False
 
-import sys
+#import sys
 import math
 from typing import Dict, Optional, Tuple
 
@@ -156,12 +156,13 @@ class QuietMultiheadAttention(nn.Module):
         assert embed_dim == self.embed_dim
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
 
-        if (
-            self.enable_torch_version
-            and not self.onnx_trace
-            and incremental_state is None
-            and not static_kv
-        ):
+        if False:
+        #     (
+        #     self.enable_torch_version
+        #     and not self.onnx_trace
+        #     and incremental_state is None
+        #     and not static_kv
+        # ):
             raise NotImplementedError('Wrong way! Hard code the if condition as False if you want this to work')
             assert key is not None and value is not None
 

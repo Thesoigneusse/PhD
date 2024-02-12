@@ -9,6 +9,8 @@ import sys
 
 import torch
 from torch import Tensor
+import torch.nn.functional as F
+from fairseq.data.data_utils import collate_tokens
 
 from fairseq.models import (
     register_model,
@@ -61,64 +63,15 @@ class ConcatTransformer(TransformerModel):
         """Add model-specific arguments to the parser."""
         # fmt: off
         TransformerModel.add_args(parser)
-        parser.add_argument(
-            '--segment-shifted-positions',
-            action='store_true',
-            help='shift positions of --position-shift (below) after the end of '
-                'a segment of the concatenated input sequence, i.e., after a <SEP> token'
-        )
-        parser.add_argument(
-            '--position-shift',
-            type=int,
-            default=0,
-            help='if --segment-shifted-positions, shift positions '
-                 'of --position-shift after the end of a segment of '
-                 'the concatenated input sequence, i.e., after a <SEP> token.'
-                 'If position_shift=-1, then shift is equal to the average length'
-                 'of the sentences belonging to the concatenated source sequence.'
-        )
-        parser.add_argument(
-            '--use-segment-emb',
-            action='store_true',
-            help='use segment embeddings, sinusoidal by default'
-        )
-        parser.add_argument(
-            '--lrn-segment-emb',
-            action='store_true',
-            help='learn segment embeddings'
-        )
-        parser.add_argument(
-            '--onehot-segment-emb',
-            action='store_true',
-            help='learn segment embeddings'
-        )
-        parser.add_argument(
-            '--pse-segment-dim',
-            type=int,
-            default=0,
-            help='fuse position and segment embeddings in a single vector'
-                '(pse) of size embedding_dim. Segment indices are encoded'
-                'in the last pse_segment_dim dimensions of such vector,'
-                'while the remaining dimensions are dedicated to positions'
-        )
-        parser.add_argument(
-            '--persistent-positions',
-            action='store_true',
-            help='add position embeddings to the input of every layer'
-                ' instead of the first layer only'
-        )
-        parser.add_argument(
-            '--persistent-segment-emb',
-            action='store_true',
-            help='add segment embeddings to the input of every layer'
-                ' instead of the first layer only'
-        )
-        parser.add_argument(
-            '--persistent-pse',
-            action='store_true',
-            help='add pse to the input of every layer'
-                ' instead of the first layer only'
-        )
+        parser.add_argument('--segment-shifted-positions', action='store_true', help='shift positions of --position-shift (below) after the end of '     'a segment of the concatenated input sequence, i.e., after a <SEP> token')
+        parser.add_argument('--position-shift', type=int, default=0, help='if --segment-shifted-positions, shift positions '      'of --position-shift after the end of a segment of '      'the concatenated input sequence, i.e., after a <SEP> token.'      'If position_shift=-1, then shift is equal to the average length'      'of the sentences belonging to the concatenated source sequence.')
+        parser.add_argument('--use-segment-emb', action='store_true', help='use segment embeddings, sinusoidal by default')        
+        parser.add_argument('--lrn-segment-emb', action='store_true', help='learn segment embeddings')        
+        parser.add_argument('--onehot-segment-emb', action='store_true', help='learn segment embeddings')        
+        parser.add_argument('--pse-segment-dim', type=int, default=0, help='fuse position and segment embeddings in a single vector'     '(pse) of size embedding_dim. Segment indices are encoded'     'in the last pse_segment_dim dimensions of such vector,'     'while the remaining dimensions are dedicated to positions')        
+        parser.add_argument('--persistent-positions', action='store_true', help='add position embeddings to the input of every layer'     ' instead of the first layer only')        
+        parser.add_argument('--persistent-segment-emb', action='store_true', help='add segment embeddings to the input of every layer'     ' instead of the first layer only')        
+        parser.add_argument('--persistent-pse', action='store_true', help='add pse to the input of every layer'     ' instead of the first layer only')        
         # fmt: on
 
     @classmethod
@@ -169,7 +122,7 @@ class ConcatTransformer(TransformerModel):
             )
             decoder_embed_tokens = cls.build_embedding(
                 args, tgt_dict, args.decoder_embed_dim, args.decoder_embed_path
-            )  
+            )
 
         # build (position-)segment embeddings
         if args.pse_segment_dim > 0:
@@ -216,17 +169,22 @@ class ConcatTransformer(TransformerModel):
                 padding_idx=args.seg_padding_idx
             ) if args.use_segment_emb else None
         # segment embeddings are always shared between source and target
-        decoder_embed_segments = encoder_embed_segments          
+        decoder_embed_segments = encoder_embed_segments
 
         # build main blocks
-        encoder = cls.build_encoder(
-            args, src_dict, encoder_embed_tokens, encoder_embed_segments
-        )
+        if hasattr(task, "roberta"):
+            encoder = cls.build_encoder(
+                args, src_dict, encoder_embed_tokens, encoder_embed_segments, _RoBERTa=task.roberta
+            )
+        else:
+            encoder = cls.build_encoder(
+                args, src_dict, encoder_embed_tokens, encoder_embed_segments
+            )
         decoder = cls.build_decoder(
             args, tgt_dict, decoder_embed_tokens, decoder_embed_segments
         )
         return cls(args, encoder, decoder)
-    
+
     @classmethod
     def build_position_segment_embedding(
         cls,
@@ -258,14 +216,15 @@ class ConcatTransformer(TransformerModel):
                 learned=getattr(args, "lrn_segment_emb", False),
                 onehot=getattr(args, "onehot_segment_emb", False),
                 )
-    
+
     @classmethod
-    def build_encoder(cls, args, src_dict, embed_tokens, embed_segments):
+    def build_encoder(cls, args, src_dict, embed_tokens, embed_segments, _RoBERTa=None):
         return ConcatTransformerEncoder(
             args,
             src_dict,
             embed_tokens,
-            embed_segments
+            embed_segments,
+            RoBERTa=_RoBERTa
         )
 
     @classmethod
@@ -311,7 +270,7 @@ class ConcatTransformer(TransformerModel):
 
 class ConcatTransformerEncoder(TransformerEncoder):
 
-    def __init__(self, args, dictionary, embed_tokens, embed_segments):
+    def __init__(self, args, dictionary, embed_tokens, embed_segments, RoBERTa=None):
         super().__init__(args, dictionary, embed_tokens)
         self.analyze_self_attn = bool(args.need_encoder_self_attn)
         self.num_sent = args.num_sent
@@ -323,7 +282,7 @@ class ConcatTransformerEncoder(TransformerEncoder):
             self.persistent_segment_emb = False
             self.persistent_positions = False
         else:
-            # embed position and segment information in different vectors 
+            # embed position and segment information in different vectors
             self.embed_pse = None
             self.persistent_pse = False
             self.embed_segments = embed_segments
@@ -343,7 +302,7 @@ class ConcatTransformerEncoder(TransformerEncoder):
                 logger.info("shifting positions of %s units after every <SEP>", self.position_shift)
             elif self.position_shift == -1:
                 logger.info("shifting positions of average sentence length after every <SEP>")
-        
+        self.roberta = RoBERTa
         # logging relevant info
         if self.persistent_pse:
             logger.info("pse are persistent througout encoder layers")
@@ -361,9 +320,40 @@ class ConcatTransformerEncoder(TransformerEncoder):
         po_segment_labels: Optional[Tensor] = None,
         ):
 
-        # embed tokens
-        x = encoder_embedding = self.embed_scale * self.embed_tokens(src_tokens)
+        # print(self.roberta.decode(src_tokens[0].cpu()))
+        # print(self.roberta.decode(src_tokens[1].cpu()))
+        # print(self.roberta.decode(src_tokens[2].cpu()))
 
+        # Utilisation de l'encodage de RoBERTa
+        if hasattr(self, 'roberta') and self.roberta is not None:
+            x_device = src_tokens.device
+            # src_tokens = [ self.roberta.encode( self.dictionary.string(t) ) for t in src_tokens ]
+            # src_tokens = collate_tokens( src_tokens, self.dictionary.pad() ).to(x_device)
+
+            ## Already done in sent2doc_dataset.py
+            # print(f"[DEBUG] **********************extract feature: \n{self.roberta.extract_features.__code__.co_varnames[:self.roberta.extract_features.__code__.co_argcount]}\n*******************************")
+            trs_x = self.roberta.extract_features( src_tokens, return_all_hiddens=True)
+
+            # print(f"[DEBUG] src_tokens.size: {[x.size() for x in src_tokens]}")
+            # print(f"[DEBUG] trs_x.size: {[x.size() for x in trs_x]}")
+            trs_x = torch.stack( trs_x[-4:], dim=-1 )
+            # print(f"[AFTER] trs_x.size: {[x.size() for x in trs_x]}")
+            trs_x = torch.mean( trs_x, dim=3 )
+            trs_x = F.dropout(trs_x, p=self.dropout_module.p, training=self.training)
+            x = encoder_embedding = trs_x
+        else:
+            
+            x = encoder_embedding = self.embed_scale * self.embed_tokens(src_tokens)
+            # print(f"[DEBUG] type(x): {type(x)}")
+            # print(f"[DEBUG] x.size: {x.size()}")
+        # embed tokens
+        # print("***********************************************")
+        # 
+        # print(f"[DEBUG]dim de trs_x : {trs_x.dim()}")
+        # print(f"[DEBUG]trs_x : {trs_x}")
+        # print(f"[DEBUG]dim de x : {x.dim()}")
+        # print(f"[DEBUG]x : {x}")
+        # print("-----------------------------------------------")
         if self.embed_pse is not None:
             # embed segments and positions in a single vector
             pse = self.embed_pse(src_tokens, src_segment_labels)
@@ -385,6 +375,9 @@ class ConcatTransformerEncoder(TransformerEncoder):
                     )
                 else:
                     positions = self.embed_positions(src_tokens)
+                # print(f"[DEBUG]x size: {x.size()}")
+                # print(f"[DEBUG]position.size: {positions.size()}")
+                sys.stdout.flush()
                 x += positions
             # embed segments
             if self.embed_segments is not None:
@@ -398,7 +391,11 @@ class ConcatTransformerEncoder(TransformerEncoder):
 
         if self.quant_noise is not None:
             x = self.quant_noise(x)
+        
 
+        # B : batch
+        # T : longueur de la séquence
+        # C : features (512)
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
         if self.persistent_pse:
@@ -567,7 +564,7 @@ class ConcatTransformerDecoder(TransformerDecoder):
             self.persistent_segment_emb = False
             self.persistent_positions = False
         else:
-            # embed position and segment information in different vectors 
+            # embed position and segment information in different vectors
             self.embed_pse = None
             self.persistent_pse = False
             self.embed_segments = embed_segments
@@ -582,7 +579,7 @@ class ConcatTransformerDecoder(TransformerDecoder):
                     padding_idx=embed_tokens.padding_idx,
                     learned=args.decoder_learned_pos,
                 )
-        
+
         if self.persistent_pse:
             logger.info("pse are persistent througout decoder layers")
         if self.persistent_segment_emb:
@@ -771,68 +768,7 @@ class ConcatTransformerDecoder(TransformerDecoder):
                     need_head_weights=bool((idx == alignment_layer)),
                 )
             inner_states.append(x)
-        
-        if False:
-            def analyze_attn(attns, segment_labels, tokens, layer="all", debug=False):
-                if layer == "all":
-                    # average attention over all layers
-                    attn = torch.stack(attns,dim=0).mean(0)
-                else:
-                    # last layer attention
-                    attn = attns[int(layer)]
-                if debug:
-                    # calculate metrics on uniform attention distribution
-                    attn = (attn!=0)/(attn!=0).sum(2).unsqueeze(1)
-                # set to zero attention of the END token on itself in the decoder
-                attn[attn==1]=0
-                # compute mask
-                mask_pad = (segment_labels!=0).to(dtype=int)
-                # mask out attention from padding as query
-                attn = attn * mask_pad.unsqueeze(2)
-                # entropy
-                token_entr = torch.special.entr(attn).sum(2)
-                avg_sent_entr = token_entr.sum(1)/(token_entr!=0).sum(1)
-                if attn.shape[1]!=attn.shape[2]:
-                    # we don't calculate curr2curr attn for cross attention
-                    # sometimes this condition does not apply to cross attn
-                    # for target and source have same length. It doesnt matter
-                    return None, avg_sent_entr
-                else:
-                    # compute context mask
-                    mask_ctx = (segment_labels==1).to(dtype=int)
-                    # only retain attention weights of current queries
-                    attn_curr = attn * mask_ctx.unsqueeze(2)
-                    # for each query, only retain the sum of the attention weights to current keys,
-                    # then average over each current query in the batch
-                    attn_curr_to_curr = (attn_curr * mask_ctx.unsqueeze(1)).sum(2)
-                    avg_attn_curr_to_curr = attn_curr_to_curr.sum(1)/(attn_curr_to_curr!=0).sum(1)
-                    return avg_attn_curr_to_curr, avg_sent_entr
 
-            # analyze attention distribution at each layer
-            for layer in ["all", 0, 1, 2, 3, 4, 5]:
-                attn_curr_to_curr, avg_sent_entr = analyze_attn(
-                    attns, po_segment_labels, prev_output_tokens, layer=layer)
-                # log results
-                if attn_curr_to_curr is not None:
-                    for a, e in zip(attn_curr_to_curr, avg_sent_entr):
-                        logger.info(
-                            f"Decoder {layer} layer cur2cur attn: {a.item()}")
-                        logger.info(
-                            f"Decoder {layer} layer avg attn entropy: {e.item()}")
-                else:
-                    for e in avg_sent_entr:
-                        logger.info(
-                            f"Decoder {layer} layer avg attn entropy: {e.item()}")
-
-            # if layer_attn is not None and idx == alignment_layer:
-            #     attn = layer_attn.float().to(x)
-
-        # if attn is not None:
-        #     if alignment_heads is not None:
-        #         attn = attn[:alignment_heads]
-
-        #     # average probabilities over heads
-        #     attn = attn.mean(dim=0)
 
         if self.layer_norm is not None:
             x = self.layer_norm(x)
@@ -877,7 +813,7 @@ def label_segments(
                 segment_labels[i] = nsents[i]
 
     return segment_labels
-    
+
 ###############################################################################
 
 @register_model_architecture("concat_transformer", "concat_test")
@@ -1015,15 +951,15 @@ def concat_vaswani_wmt_en_fr(args):
     transformer_vaswani_wmt_en_fr(args)
 
 @register_model_architecture("concat_transformer", "concat_vaswani_wmt_zh_en")
-def concat_vaswani_wmt_en_fr(args):
+def concat_vaswani_wmt_zh_en(args):
     # concat args
     args.use_segment_emb = getattr(args, "use_segment_emb", False)
     args.lrn_segment_emb = getattr(args, "lrn_segment_emb", False)
     args.onehot_segment_emb = getattr(args, "onehot_segment_emb", False)
     args.persistent_positions = getattr(args, "persistent_positions", False)
     args.persistent_segment_emb = getattr(args, "persistent_segment_emb", False)
-    # other args
     transformer_vaswani_wmt_zh_en(args)
+    # other args
 
 @register_model_architecture("concat_transformer", "concat_segshift_vaswani_wmt_en_fr")
 def concat_segshift_vaswani_wmt_en_fr(args):
@@ -1089,5 +1025,9 @@ def concat_vaswani_wmt_en_fr_new_attn(args):
     args.onehot_segment_emb = getattr(args, "onehot_segment_emb", False)
     args.persistent_positions = getattr(args, "persistent_positions", False)
     args.persistent_segment_emb = getattr(args, "persistent_segment_emb", False)
+    ## TEST
+    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 1024)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 1024)
+
     # other args
     transformer_vaswani_wmt_en_fr_new_attn(args)

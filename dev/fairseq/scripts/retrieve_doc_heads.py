@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 
 
 def main():
@@ -10,13 +11,16 @@ def main():
     )
     # fmt: off
     parser.add_argument('input_path',help='Input dataset file paths.')
-    parser.add_argument(
-        '--fill-size',
+    parser.add_argument('--fill-size',
         type=int,
         metavar='N',
         default=None,
         help='fill output with artificial heads every fill-size lines'
     )
+    parser.add_argument('--regular-expression',
+                        type=str,
+                        default=None,
+                        help='Regular expression to explain the end of the document')
     # fmt: on
     args = parser.parse_args()
 
@@ -29,13 +33,16 @@ def main():
     cnt = 0
     with open(old, 'r') as infile, open(new, 'w+') as outfile:
         for n, line in enumerate(infile):
-            if line.strip(): # non-empty line. Write it to output
+            if (line.strip() and args.regular_expression is None) \
+                or re.fullmatch(args.regular_expression, line) is None : # non-empty line and no regular_expression or not the regular expression that we look for. Write it to output
                 outfile.write(line)  
             else:
                 id = n + 1 - cnt
                 if id != 1 : # first head is added by definition
                     heads.append(id)
                 cnt += 1
+        
+
     os.remove(old)
 
     print("Number of document in {0}: ".format(new), len(heads))
