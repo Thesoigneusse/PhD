@@ -8,4 +8,5 @@ dev/fairseq/fairseq/tasks/__pycache__/
 dev/fairseq/fairseq_cli/__pycache__/
 dev/Utils/Scripts/convert/conll2seqtoseq/__pycache__/
 checkpoints/
+output/
 output.txt
