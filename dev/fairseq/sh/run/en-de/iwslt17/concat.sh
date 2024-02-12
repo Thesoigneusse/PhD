@@ -173,7 +173,6 @@ then
     --$opt $val \
     --need-seg-label $need_seg_label \
     --context-discount $context_discount \
-    --original-loss-for-stopping \
     --arch $arch \
     --pse-segment-dim $pse_segment_dim \
     --position-shift $position_shift \
