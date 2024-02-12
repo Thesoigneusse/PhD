@@ -36,7 +36,7 @@
 HOME=/home/getalp/lopezfab/PhD
 LORENZO_CODE=$HOME/dev/fairseq
 DATA=$HOME/dev/fairseq/data/en-de
-
+OUTPUT=$HOME/output/en-de/nei/standard
 
 echo " "
 echo "Lancement de l'environnement..."
@@ -61,7 +61,8 @@ bash $LORENZO_CODE/sh/run/en-de/iwslt17/concat.sh --t=train \
     --max_tokens=500 --update_freq=1  \
     --kind_attention_head="multihead_attention" \
     --fp16 \
-    --mode=slide_n2n --opt=num-sent --val=4 --need_seg_label=True
+    --mode=slide_n2n --opt=num-sent --val=4 --need_seg_label=True \
+    tee $OUTPUT/concat.en-de.test.txt
 # --pretrained="$HOME/checkpoints/en-de/baseline_transformer_en_fr.en-de.SL" \
 
 # bash $LORENZO_CODE/sh/slurm/en-de/temp_naver-submit-transfo.slurm

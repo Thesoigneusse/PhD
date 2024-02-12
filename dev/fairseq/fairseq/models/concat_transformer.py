@@ -344,8 +344,8 @@ class ConcatTransformerEncoder(TransformerEncoder):
         else:
             
             x = encoder_embedding = self.embed_scale * self.embed_tokens(src_tokens)
-            print(f"[DEBUG] type(x): {type(x)}")
-            print(f"[DEBUG] x.size: {x.size()}")
+            # print(f"[DEBUG] type(x): {type(x)}")
+            # print(f"[DEBUG] x.size: {x.size()}")
         # embed tokens
         # print("***********************************************")
         # 
