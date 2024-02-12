@@ -147,10 +147,12 @@ then
     opt=num-sent
     if [ -n "$val" ]; then val=$val; else val=4; fi
 fi
-if [ -n "$max_src_pos" ]; then max_src_pos=$max_src_pos; else max_src_pos=1024; fi
-if [ -n "$max_tgt_pos" ]; then max_tgt_pos=$max_tgt_pos; else max_tgt_pos=1024; fi
+if [ -n "$max_src_pos" ]; then max_src_pos=$max_src_pos; else max_src_pos=512; fi
+if [ -n "$max_tgt_pos" ]; then max_tgt_pos=$max_tgt_pos; else max_tgt_pos=512; fi
 if [ -n "$need_seg_label" ]; then need_seg_label=$need_seg_label; else need_seg_label=False ; fi
-if [ -n "$context_discount" ]; then context_discount=$context_discount; else context_discount=1 ; fi
+if [ -n "$context_discount" ]; then context_discount=$context_discount; else context_discount=0.01 ; fi
+if [ -n "$kind_attention_head" ]; then kind_attention_head=$kind_attention_head; else kind_attention_head="multihead_attention" ; fi
+
 
 # Run #########################################################################
 if [ $t = "train" ]
@@ -168,6 +170,7 @@ then
     --need-seg-label $need_seg_label \
     --context-discount $context_discount \
     --original-loss-for-stopping \
+    --kind-attention-head $kind_attention_head \
     --arch $arch \
     --pse-segment-dim $pse_segment_dim \
     --position-shift $position_shift \
