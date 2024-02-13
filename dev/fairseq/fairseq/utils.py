@@ -764,7 +764,10 @@ def eval_str_dict(x, type=dict):
 def eval_bool(x, default=False):
     if x is None:
         return default
+    if type(x) == bool:
+        return x
     try:
         return bool(eval(x))
     except TypeError:
         return default
+
