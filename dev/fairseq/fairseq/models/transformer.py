@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+import sys
 from fairseq import utils
 from fairseq.models import (
     FairseqEncoder,
@@ -29,6 +30,7 @@ from fairseq.modules import (
 )
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 from torch import Tensor
+from os.path import isdir
 
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
@@ -170,6 +172,17 @@ class TransformerModel(FairseqEncoderDecoderModel):
                  'True: use a modified softmax to allow for no attention decision',
             choices=['True', 'False']
         )
+        parser.add_argument(
+            '--extract-attention',
+            default='False',
+            help='Allow to extract attention on a .json format and write it on a file',
+            choices=['True', 'False']
+        )
+        parser.add_argument(
+            '--attention-output-file',
+            default=None,
+            help="Path for a folder to save attention information"
+        )
         # fmt: on
 
     @classmethod
@@ -190,6 +203,13 @@ class TransformerModel(FairseqEncoderDecoderModel):
             args.max_target_positions = DEFAULT_MAX_TARGET_POSITIONS
 
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
+        sys.stdout.flush
+        if hasattr(args, "extract_attention") and args.extract_attention:
+            if not hasattr(args, "attention_output_file") or not isdir(args.attention_output_file) :
+                raise ValueError("--extract_attention need --attention_output_file to be a path")
+            else:
+                print(f"[EXTRACT ATTENTION]Extract attention weight of the model")
+                print(f"[EXTRACT ATTENTION]Write attention weight to: {args.attention_output_file}")
 
         if args.share_all_embeddings:
             if src_dict != tgt_dict:
@@ -987,6 +1007,8 @@ def base_architecture(args):
     args.no_scale_embedding = getattr(args, "no_scale_embedding", False)
     args.layernorm_embedding = getattr(args, "layernorm_embedding", False)
     args.tie_adaptive_weights = getattr(args, "tie_adaptive_weights", False)
+    args.extract_attention = utils.eval_bool(getattr(args, "extract_attention", "False"))
+
 
 
 @register_model_architecture("transformer", "transformer_iwslt_de_en")
@@ -1179,5 +1201,6 @@ def transformer_vaswani_wmt_en_fr_new_attn(args):
     args.decoder_layers = getattr(args, "decoder_layers", 6)
     args.share_all_embeddings = utils.eval_bool(getattr(args, "share_all_embeddings", "True"))
     args.dropout = getattr(args, "dropout", 0.1)
-    args.attention_head = utils.eval_bool(getattr(args, "quiet_attention", "False"))
+    args.quiet_attention = utils.eval_bool(getattr(args, "quiet_attention", "False"))
+    args.extract_attention = utils.eval_bool(getattr(args, "extract_attention", "False"))
     base_architecture(args)

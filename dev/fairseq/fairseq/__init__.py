@@ -26,3 +26,5 @@ import fairseq.token_generation_constraints  # noqa
 
 import fairseq.benchmark  # noqa
 import fairseq.model_parallel  # noqa
+
+import fairseq.decorators

@@ -56,6 +56,8 @@ def _main(args, output_file):
     )
     logger = logging.getLogger('fairseq_cli.generate')
 
+    attn_save = {}
+
     utils.import_user_module(args)
 
     if args.max_tokens is None and args.batch_size is None:
@@ -208,6 +210,10 @@ def _main(args, output_file):
             if has_target:
                 target_tokens = utils.strip_pad(sample['target'][i, :], tgt_dict.pad()).int().cpu()
 
+            model_name = models[0].__get_name()
+            if model_name == "ConcatTransformer":
+                attn_save["src_segment_labels"] = sample["net_input"]["src_segment_labels"]
+
             # Either retrieve the original sentences or regenerate them from tokens.
             if align_dict is not None:
                 src_str = task.dataset(args.gen_subset).src.get_original_text(sample_id)
@@ -244,8 +250,15 @@ def _main(args, output_file):
 
             # Process top predictions
             for j, hypo in enumerate(hypos[i][:args.nbest]):
+                if model_name =="ConcatTransformer" and args.extract_attention:
+                    hypo_token = hypo['tokens'].int().cpu()
+                    attn_save["src_tokens"] = src_dict.string(save_src_tokens)
+                    ctx_hypo_tokens = hypo['ctx_plus_target'].int().cpu()
+                    attn_save["tgt_tokens"] = tgt_dict.string(ctx_hypo_tokens)
+                    attn_save["enc_attn"] = hypo['encoder_context_attention'][0, :, :]
+
                 hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
-                    hypo_tokens=hypo['tokens'].int().cpu(),
+                    hypo_tokens=hypo_token,
                     src_str=src_str,
                     alignment=hypo['alignment'],
                     align_dict=align_dict,
@@ -254,6 +267,23 @@ def _main(args, output_file):
                     extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
                     include_eos=args.include_eos,
                 )
+
+                if model_name== "ConcatTransformer" and args.extract_attention:
+                    def inscription_json(dictionnaire, chemin_output):
+                        import json
+
+                        with open(f'{chemin_output}', 'w', encoding="utf-8") as f:
+                            json.dump(dictionnaire, f, ensure_ascii=False)
+                    inscription_json({
+                        "id": sample_id,
+                        "src_tokens": attn_save['src_tokens'],
+                        "src_segments_labels": attn_save["src_segment_labels"].tolist()[0],
+                        "tgt_tokens": attn_save['tgt_tokens'],
+                        "tgt_eos_pos": [str(pos) for pos in hypo["tgt_eos_pos"].tolist()],
+                        "enc_attn": [([str(weight) for weight in ligne.tolist()]) for ligne in attn_save["enc_attn"]],
+                        "dec_attn": [([str(weight) for weight in ligne.tolist()]) for ligne in attn_save["dec_attn"]]
+                    }, chemin_output=f"{args.attention_output_file}/{sample_id}.json")
+
                 detok_hypo_str = decode_fn(hypo_str)
                 if not args.quiet:
                     score = hypo['score'] / math.log(2)  # convert to base 2

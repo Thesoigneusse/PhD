@@ -155,6 +155,9 @@ if [ -n "$need_seg_label" ]; then need_seg_label=$need_seg_label; else need_seg_
 if [ -n "$context_discount" ]; then context_discount=$context_discount; else context_discount=0.01 ; fi
 if [ -n "$path" ]; then checkpoint_path=$path; else checkpoint_path=$checkpoint_path ; fi
 if [ -n "$quiet_attention" ]; then quiet_attention=$quiet_attention; else quiet_attention="False" ; fi
+if [ -n "$extract_attention" ]; then extract_attention=$extract_attention; else extract_attention="False" ; fi
+if [ -n "$attention_output_file" ]; then attention_output_file=$attention_output_file; else attention_output_file="$save_dir/attention_weight" ; fi
+
 # if [ -n "$roberta_model" ]; then roberta_model=$roberta_model; else roberta_model="$HOME/PhD/dev/fairseq/fairseq/models/roberta/roberta.large/model.pt"; fi
 
 
@@ -182,6 +185,8 @@ then
     --lr-scheduler $lr_scheduler --lr $lr --warmup-updates $warmup_updates --warmup-init-lr $warmup_init_lr --min-lr $min_lr \
     --max-tokens $max_tokens \
     --quiet-attention $quiet_attention \
+    --extract-attention $extract_attention \
+    --attention-output-file $attention_output_file \
     --update-freq $update_freq \
     --patience $patience \
     --keep-last-epochs $keep_last_epochs \
@@ -288,6 +293,9 @@ then
     --mode $mode \
     --$opt $val \
     --need-seg-label $need_seg_label \
+    --quiet-attention $quiet_attention \
+    --extract-attention $extract_attention \
+    --attention-output-file $attention_output_file \
     --batch-size $batch_size \
     --remove-bpe \
     --beam $beam \

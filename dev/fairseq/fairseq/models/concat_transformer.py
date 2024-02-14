@@ -34,7 +34,9 @@ from fairseq.modules.segment_embedding import (
 from fairseq.modules.segment_shifted_positional_embedding import (
     SegmentShiftedPositionalEmbedding
 )
+from fairseq.decorators import attention
 
+from os.path import isdir
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
@@ -183,6 +185,16 @@ class ConcatTransformer(TransformerModel):
         decoder = cls.build_decoder(
             args, tgt_dict, decoder_embed_tokens, decoder_embed_segments
         )
+        sys.stdout.flush
+        if hasattr(args, "extract_attention") and args.extract_attention:
+            if not hasattr(args, "attention_output_file") or not isdir(args.attention_output_file) :
+                raise ValueError("--extract_attention need --attention_output_file to be a path")
+            else:
+                logger.info(f"[EXTRACT ATTENTION] Extract attention weight of the model")
+                logger.info(f"[EXTRACT ATTENTION] Write attention weight to: {args.attention_output_file}")
+
+
+
         return cls(args, encoder, decoder)
 
     @classmethod
@@ -272,6 +284,7 @@ class ConcatTransformerEncoder(TransformerEncoder):
 
     def __init__(self, args, dictionary, embed_tokens, embed_segments, RoBERTa=None):
         super().__init__(args, dictionary, embed_tokens)
+        self.extract_attention = bool(args.extract_attention)
         self.analyze_self_attn = bool(args.need_encoder_self_attn)
         self.num_sent = args.num_sent
         if args.pse_segment_dim > 0:
@@ -311,6 +324,7 @@ class ConcatTransformerEncoder(TransformerEncoder):
         if self.persistent_positions:
             logger.info("positions are persistent througout encoder layers")
 
+    # @attention.save_encoder_values
     def forward(
         self,
         src_tokens,
@@ -411,11 +425,11 @@ class ConcatTransformerEncoder(TransformerEncoder):
 
         # encoder layers
         encoder_states = [] if return_all_hiddens else None
-        attns = [] if not self.training else None
+        attns = [] if self.extract_attention else None
         attn: Optional[Tensor] = None
-        save_attn = [] if not self.training else None
+        save_attn = [] if self.extract_attention else None
         for idx, layer in enumerate(self.layers):
-            if save_attn is not None:
+            if self.extract_attention:
                 save_attn.append({
                 "src_tokens": self.dictionary.string(src_tokens), # Source tokens (context + current)
                 "matrix_weights": []
@@ -431,12 +445,12 @@ class ConcatTransformerEncoder(TransformerEncoder):
                     # we add segment embeddings to the input of each layer
                     x += segment_emb
 
-            if not self.training:
+            if self.extract_attention:
                 x, attn = layer(x, encoder_padding_mask,
-                                need_attn=not self.training)
+                                need_attn=self.extract_attention)
                 attns.append(attn)
             else:
-                x = layer(x, encoder_padding_mask, need_attn=self.analyze_self_attn)
+                x = layer(x, encoder_padding_mask, need_attn=self.extract_attention)
 
             if return_all_hiddens:
                     assert encoder_states is not None
@@ -454,42 +468,6 @@ class ConcatTransformerEncoder(TransformerEncoder):
             #    sys.stdout.flush()
             #    save_attn[idx]["matrix_weights"].append(attns[i])
         #    raise NotImplementedError()
-
-        if False:
-            def analyze_attn(attns, segment_labels, src_tokens, layer="all", debug=False):
-                if layer == "all":
-                    # average attention over all layers
-                    attn = torch.stack(attns,dim=0).mean(0)
-                else:
-                    # last layer attention
-                    attn = attns[int(layer)]
-                if debug:
-                    # calculate metrics on uniform attention distribution
-                    attn = (attn!=0)/(attn!=0).sum(2).unsqueeze(1)
-                # compute mask
-                mask_pad = (segment_labels!=0).to(dtype=int)
-                # mask out attention from padding as query
-                attn = attn * mask_pad.unsqueeze(2)
-                # entropy
-                token_entr = torch.special.entr(attn).sum(2)
-                avg_sent_entr = token_entr.sum(1)/(token_entr!=0).sum(1)
-                # compute context mask
-                mask_ctx = (segment_labels==1).to(dtype=int)
-                # only retain attention weights of current queries
-                attn_curr = attn * mask_ctx.unsqueeze(2)
-                # for each query, only retain the sum of the attention weights to current keys,
-                # then average over each current query in the batch
-                attn_curr_to_curr = (attn_curr * mask_ctx.unsqueeze(1)).sum(2)
-                avg_attn_curr_to_curr = attn_curr_to_curr.sum(1)/(attn_curr_to_curr!=0).sum(1)
-                return avg_attn_curr_to_curr, avg_sent_entr
-
-            # analyze attention distribution at each layer
-            for layer in ["all", 0, 1, 2, 3, 4, 5]:
-                attn_curr_to_curr, avg_sent_entr = analyze_attn(attns, src_segment_labels, src_tokens, layer=layer)
-                # log results
-                for a,e in zip(attn_curr_to_curr,avg_sent_entr):
-                    logger.info(f"Encoder {layer} layer cur2cur attn: {a.item()}")
-                    logger.info(f"Encoder {layer} layer avg attn entropy: {e.item()}")
 
         return EncoderOut(
             encoder_out=x,  # T x B x C
@@ -553,6 +531,7 @@ class ConcatTransformerDecoder(TransformerDecoder):
 
     def __init__(self, args, dictionary, embed_tokens, embed_segments, no_encoder_attn=False):
         super().__init__(args, dictionary, embed_tokens, no_encoder_attn)
+        self.extract_attention = bool(args.extract_attention)
         self.analyze_self_attn = bool(args.need_decoder_self_attn)
         self.analyze_cross_attn = bool(args.need_cross_attn)
         self.num_sent = args.num_sent
@@ -723,7 +702,7 @@ class ConcatTransformerDecoder(TransformerDecoder):
             self_attn_padding_mask = prev_output_tokens.eq(self.padding_idx)
 
         # decoder layers
-        attns = [] if not self.training else None
+        attns = [] if self.extract_attention else None
         attn: Optional[Tensor] = None
         inner_states: List[Optional[Tensor]] = [x]
         for idx, layer in enumerate(self.layers):
@@ -742,7 +721,7 @@ class ConcatTransformerDecoder(TransformerDecoder):
                 if self.persistent_segment_emb and idx > 0:
                     # we add segment embeddings to the input of each layer
                     x += segment_emb
-            if not self.training:
+            if self.extract_attention:
                 x, layer_attn, self_attn_layer = layer(
                     x,
                     encoder_out.encoder_out if encoder_out is not None else None,
@@ -751,8 +730,8 @@ class ConcatTransformerDecoder(TransformerDecoder):
                     incremental_state,
                     self_attn_mask=self_attn_mask,
                     self_attn_padding_mask=self_attn_padding_mask,
-                    need_attn=bool((idx == alignment_layer)) or self.analyze_cross_attn,
-                    need_self_attn=self.analyze_self_attn
+                    need_attn=bool((idx == alignment_layer)) or self.extract_attention,
+                    need_self_attn=self.extract_attention
                 )
                 attns.append(self_attn_layer)
             else:
@@ -948,7 +927,8 @@ def concat_vaswani_wmt_en_fr(args):
     args.persistent_positions = getattr(args, "persistent_positions", False)
     args.persistent_segment_emb = getattr(args, "persistent_segment_emb", False)
     # other args
-    transformer_vaswani_wmt_en_fr(args)
+    transformer_vaswani_wmt_en_fr_new_attn(args)
+    # transformer_vaswani_wmt_en_fr(args)
 
 @register_model_architecture("concat_transformer", "concat_vaswani_wmt_zh_en")
 def concat_vaswani_wmt_zh_en(args):
@@ -1031,3 +1011,4 @@ def concat_vaswani_wmt_en_fr_new_attn(args):
 
     # other args
     transformer_vaswani_wmt_en_fr_new_attn(args)
+    # print(args.extract_attention)

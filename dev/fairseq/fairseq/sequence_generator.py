@@ -247,6 +247,8 @@ class SequenceGenerator(nn.Module):
         )  # +2 for eos and pad
         tokens[:, 0] = self.eos if bos_token is None else bos_token
         attn: Optional[Tensor] = None
+        enc_attn: Optional[Tensor] = None
+        dec_attn: Optional[Tensor] = None
 
         # A list that indicates candidates that should be ignored.
         # For example, suppose we're sampling and have already finalized 2/5
@@ -300,6 +302,17 @@ class SequenceGenerator(nn.Module):
                 self.temperature,
             )
 
+            # Attention extraction
+            if self.model.__get_name() == "ConcatTransformer":
+                curr_enc_attn = None
+                curr_dec_attn = None
+                if 'enc_attns' in avg_attn_scores:
+                    # NOTE: we take only the attention at the last layer
+                    curr_enc_attn = avg_attn_scores['enc_attns'][-1]
+                    curr_dec_attn = avg_attn_scores['dec_attns'][-1]
+                avg_attn_scores = avg_attn_scores['attn'][0] if 'attn' in avg_attn_scores and avg_attn_scores['attn'] is not None else None
+
+
             if self.lm_model is not None:
                 lm_out = self.lm_model(tokens[:, : step + 1])
                 probs = self.lm_model.get_normalized_probs(
@@ -338,6 +351,38 @@ class SequenceGenerator(nn.Module):
                         bsz * beam_size, avg_attn_scores.size(1), max_len + 2
                     ).to(scores)
                 attn[:, :, step + 1].copy_(avg_attn_scores)
+
+            # Attention extraction
+            if self.model.__get_name() == "ConcatTransformer":
+                if curr_enc_attn is not None:
+                    if enc_attn is None:
+                        enc_attn = curr_enc_attn
+                    else:
+                        assert torch.sum(enc_attn - curr_enc_attn) == 0.0
+
+                if curr_dec_attn is not None:
+                    if dec_attn is None:
+                        dec_attn = torch.empty(
+                            bsz*beam_size, max_len+2, max_len+2
+                        ).fill_(-1e8).to(scores)
+
+                    src_tsr = curr_dec_attn.squeeze()
+                    if len(src_tsr.size()) < 2:
+                        src_tsr = src_tsr.unsqueeze(1)
+
+                    len_dim = src_tsr.size(-1)
+                    dec_attn[:, :len_dim, step+1].copy_(src_tsr)
+
+            # Record attention scores, only support avg_attn_scores is a Tensor
+            if self.extract_attention:
+                if avg_attn_scores is not None:
+                    if attn is None:
+                        attn = torch.empty(
+                            bsz * beam_size, avg_attn_scores.size(1), max_len + 2
+                        ).to(scores)
+                    attn[:, :, step + 1].copy_(avg_attn_scores)
+
+
 
             scores = scores.type_as(lprobs)
             eos_bbsz_idx = torch.empty(0).to(
@@ -395,6 +440,9 @@ class SequenceGenerator(nn.Module):
                     attn,
                     src_lengths,
                     max_len,
+                    enc_attn,
+                    dec_attn,
+
                 )
                 num_remaining_sent -= len(finalized_sents)
 
@@ -434,6 +482,10 @@ class SequenceGenerator(nn.Module):
                 if attn is not None:
                     attn = attn.view(bsz, -1)[batch_idxs].view(
                         new_bsz * beam_size, attn.size(1), -1
+                    )
+                if dec_attn is not None:
+                    dec_attn = dec_attn.view(bsz, -1)[batch_idxs].view(
+                        new_bsz * beam_size, dec_attn.size(1), -1
                     )
                 bsz = new_bsz
             else:
@@ -501,6 +553,12 @@ class SequenceGenerator(nn.Module):
                 attn[:, :, : step + 2] = torch.index_select(
                     attn[:, :, : step + 2], dim=0, index=active_bbsz_idx
                 )
+
+            if dec_attn is not None:
+                dec_attn[:, :, : step + 2] = torch.index_select(
+                dec_attn[:, :, : step + 2], dim=0, index=active_bbsz_idx
+            )
+
 
             # reorder incremental state in decoder
             reorder_state = active_bbsz_idx

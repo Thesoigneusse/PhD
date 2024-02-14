@@ -7,6 +7,7 @@ dev/fairseq/fairseq/modules/__pycache__/
 dev/fairseq/fairseq/tasks/__pycache__/
 dev/fairseq/fairseq_cli/__pycache__/
 dev/Utils/Scripts/convert/conll2seqtoseq/__pycache__/
+nmtviz/
 checkpoints/
 output/
 output.txt
