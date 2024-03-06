@@ -24,6 +24,9 @@ def main():
     # fmt: on
     args = parser.parse_args()
 
+    if args.regular_expression is None:
+        args.regular_expression = ""
+
     new = args.input_path
     old = args.input_path + '~'
     os.rename( new, old )
@@ -33,9 +36,10 @@ def main():
     cnt = 0
     with open(old, 'r') as infile, open(new, 'w+') as outfile:
         for n, line in enumerate(infile):
-            if (line.strip() and args.regular_expression is None) \
-                or re.fullmatch(args.regular_expression, line) is None : # non-empty line and no regular_expression or not the regular expression that we look for. Write it to output
-                outfile.write(line)  
+            # print("[DEBUG]bool 2 {}".format(str(line.strip().strip('\n') == "")))
+
+            if line.strip(): # non-empty line. Write it to output
+                 outfile.write(line)  
             else:
                 id = n + 1 - cnt
                 if id != 1 : # first head is added by definition

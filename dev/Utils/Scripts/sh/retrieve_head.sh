@@ -12,7 +12,23 @@ do
    fi
 done
 
-
+if [ -n "$help" ]; then help=$help ; else help=false ; fi
+if $help ; then
+    echo "HELP :"
+    echo ""
+    echo "* INPUT"
+    echo "*   --input_path: path to the input file. Default: None"
+    echo "*   --input_file: name of the input file. Default: None"
+    echo ""
+    echo "* OUTPUT"
+    echo "*   --output_path: path to the output folder. Default: output_folder_name/output"
+    echo "*   --output_headed_file: name of the output file (without the change of file white line). Default: input_file_name.headed"
+    echo "*   --output_head_file: name of the output head file (where the beginning line of the document is writted). Default: input_file_name.heads"
+    echo ""
+    echo "* FEATURES"
+    echo "*   --fill_size: maximal size of a document. Default: 1000"
+    return 0
+fi 
 # Global variables
 if [ -n "$SCRIPTS" ]; then SCRIPTS=$SCRIPTS; else SCRIPTS=$HOME/dev/Utils/Scripts ; fi
 if [ -n "$this_script" ]; then this_script=$this_script; else this_script=$SCRIPTS/sh/retrieve_head.sh ; fi
@@ -25,6 +41,8 @@ if [ -n "$output_path" ]; then output_path=$output_path ; else output_path=$inpu
 if [ -n "$output_headed_file" ]; then output_headed_file=$output_headed_file; else output_headed_file=$input_file.headed ; fi
 if [ -n "$output_head_file" ]; then output_head_file=$output_head_file; else output_head_file=$input_file.heads ; fi
 if [ -n "$fill_size" ]; then fill_size=$fill_size ; else fill_size=1000 ; fi
+
+
 
 TMP=$output_path/.temp
 
@@ -39,7 +57,7 @@ mkdir -p $TMP
 mkdir -p $output_path
 
 # Solve head retrival and put result on the temp folder
-python $retrieve_head_script -c "WMT23" -i $input_path/$input_file -o $TMP/$input_file.headed -r $TMP/$input_file.heads
+python $retrieve_head_script -c "standard" -i $input_path/$input_file -o $TMP/$input_file.headed -r $TMP/$input_file.heads
 echo "   ... Working Done"
 
 # Move result on output folder

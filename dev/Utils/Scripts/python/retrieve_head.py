@@ -8,7 +8,7 @@ parser.add_argument("-a", "--archive", action="store_true",
 parser.add_argument("-v", "--verbose", action="store_true",
                     help="increase verbosity")
 parser.add_argument(
-    "-c", "--corpus", help="Name of the corpus for special process")
+    "-c", "--corpus", help="Name of the corpus for special process", default="standard")
 parser.add_argument("-i", "--input-path", help="Input PATH")
 parser.add_argument("-o", "--output-path", help="Output PATH")
 parser.add_argument("-r", "--result-head", help="Output PATH for head")
@@ -48,6 +48,15 @@ nb_artificial_head = 0
 # liste_head=reversed(liste_head)
 
 index_line = 0
+
+if config['corpus'] == "standard":
+    while index_line < len(data) - 1:
+        if data[index_line].strip().strip("\n") == "" :
+            del data[index_line]
+            liste_head.append(str(index_line+1))
+            index_line -= 1
+        index_line += 1
+
 if config['corpus'] == "WMT23":
     while index_line < len(data) - 1:
         if data[index_line].startswith("<CHAPTER") \

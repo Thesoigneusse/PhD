@@ -22,6 +22,8 @@ from fairseq import checkpoint_utils, options, scoring, tasks, utils
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
 from fairseq.data import encoders
+from fairseq.models import concat_transformer, han_transformer
+
 
 
 def main(args):
@@ -170,6 +172,7 @@ def _main(args, output_file):
 
     scorer = scoring.build_scorer(args, tgt_dict)
 
+    save_src_tokens = None
     num_sentences = 0
     has_target = True
     wps_meter = TimeMeter()
@@ -193,9 +196,11 @@ def _main(args, output_file):
 
         for i, sample_id in enumerate(sample['id'].tolist()):
             has_target = sample['target'] is not None
+            save_src_tokens = sample['net_input']['src_tokens'][i, :].clone()
             if 'src_tokens' in sample['net_input']:
                 # Remove padding
                 src_tokens = utils.strip_pad(sample['net_input']['src_tokens'][i, :], tgt_dict.pad())
+                save_src_tokens = src_tokens.clone()
                 # Remove context
                 if hasattr(args, "mode") and args.mode == 'slide_n2n':
                     matches = (src_tokens == src_dict.eos()).nonzero()
@@ -210,8 +215,10 @@ def _main(args, output_file):
             if has_target:
                 target_tokens = utils.strip_pad(sample['target'][i, :], tgt_dict.pad()).int().cpu()
 
-            model_name = models[0].__get_name()
-            if model_name == "ConcatTransformer":
+
+            
+            if isinstance(models[0], concat_transformer.ConcatTransformer)\
+                and utils.eval_bool(models[0].args.extract_attention):
                 attn_save["src_segment_labels"] = sample["net_input"]["src_segment_labels"]
 
             # Either retrieve the original sentences or regenerate them from tokens.
@@ -250,8 +257,9 @@ def _main(args, output_file):
 
             # Process top predictions
             for j, hypo in enumerate(hypos[i][:args.nbest]):
-                if model_name =="ConcatTransformer" and args.extract_attention:
-                    hypo_token = hypo['tokens'].int().cpu()
+                hypo_token = hypo['tokens'].int().cpu()
+                if isinstance(models[0], concat_transformer.ConcatTransformer) \
+                    and utils.eval_bool(models[0].args.extract_attention):
                     attn_save["src_tokens"] = src_dict.string(save_src_tokens)
                     ctx_hypo_tokens = hypo['ctx_plus_target'].int().cpu()
                     attn_save["tgt_tokens"] = tgt_dict.string(ctx_hypo_tokens)
@@ -268,7 +276,8 @@ def _main(args, output_file):
                     include_eos=args.include_eos,
                 )
 
-                if model_name== "ConcatTransformer" and args.extract_attention:
+                if isinstance(models[0], concat_transformer.ConcatTransformer) \
+                    and utils.eval_bool(models[0].args.extract_attention):
                     def inscription_json(dictionnaire, chemin_output):
                         import json
 

@@ -151,8 +151,9 @@ if [ -n "$max_src_pos" ]; then max_src_pos=$max_src_pos; else max_src_pos=1024; 
 if [ -n "$max_tgt_pos" ]; then max_tgt_pos=$max_tgt_pos; else max_tgt_pos=1024; fi
 if [ -n "$need_seg_label" ]; then need_seg_label=$need_seg_label; else need_seg_label=False ; fi
 if [ -n "$context_discount" ]; then context_discount=$context_discount; else context_discount=0.01 ; fi
+
 if [ -n "$path" ]; then checkpoint_path=$path; else checkpoint_path=$checkpoint_path ; fi
-if [ -n "$kind_attention_head" ]; then kind_attention_head=$kind_attention_head; else kind_attention_head="multihead_attention" ; fi
+if [ -n "$quiet_attention" ]; then quiet_attention=$quiet_attention; else quiet_attention="False" ; fi
 if [ -n "$roberta_model" ]; then roberta_model=$roberta_model; else roberta_model="$HOME/dev/fairseq/data/models/roberta/roberta.large"; fi
 if [ -n "$share_all_embeddings" ]; then share_all_embeddings=$share_all_embeddings; else share_all_embeddings=True; fi
 
@@ -180,7 +181,7 @@ then
     --optimizer adam --adam-betas "(0.9, 0.98)" \
     --lr-scheduler $lr_scheduler --lr $lr --warmup-updates $warmup_updates --warmup-init-lr $warmup_init_lr --min-lr $min_lr \
     --max-tokens $max_tokens \
-    --kind-attention-head $kind_attention_head \
+    --quiet-attention $quiet_attention \
     --update-freq $update_freq \
     --share-all-embeddings $share_all_embeddings \
     --patience $patience \

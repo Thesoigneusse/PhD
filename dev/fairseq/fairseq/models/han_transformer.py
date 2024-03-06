@@ -2,7 +2,6 @@ import logging
 import sys
 import ast
 from typing import Optional
-from distutils.util import strtobool
 import torch
 from torch import Tensor
 import torch.nn as nn
@@ -20,7 +19,7 @@ from fairseq.models.transformer import (
     transformer_vaswani_wmt_en_de_big
 )
 from fairseq.models.fairseq_encoder import EncoderOut
-from fairseq.modules import MultiheadAttention, LayerNorm, SinusoidalPositionalEmbedding
+from fairseq.modules import MultiheadAttention, LayerNorm
 
 logging.basicConfig(
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
@@ -29,7 +28,6 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 logger = logging.getLogger(__name__)
-
 
 @register_model("han_transformer")
 class HanTransformerModel(FairseqEncoderDecoderModel):
@@ -53,20 +51,13 @@ class HanTransformerModel(FairseqEncoderDecoderModel):
             type=int,
             metavar='N',
             default=3,
-            help='Number of past sentences to use as context'
-        )
-        parser.add_argument(
-            '--max-context-sents',
-            type=int,
-            metavar='N',
-            default=3,
-            help='Maximum number of past sentences allowed by the model'
+            help='number of past sentences to use as context'
         )
         parser.add_argument(
             '--han-heads',
             type=int,
             metavar='N',
-            help='Num of word-level attention heads'
+            help='num of word-level attention heads'
         )
         parser.add_argument(
             "--pretrained-transformer-checkpoint",
@@ -82,19 +73,6 @@ class HanTransformerModel(FairseqEncoderDecoderModel):
             default=False,
             help=
             'Freeze pretrained weights and disable dropout during training'
-        )
-        parser.add_argument(
-            '--use-segment-embs',
-            action='store_true',
-            default=False,
-            help='Enable distance embeddings for context and current segments.'
-        )
-        parser.add_argument(
-            '--lrn-segment-embs',
-            type=lambda x:bool(strtobool(x)),
-            default=False,
-            help='Use learned embeddings for context and current segments, \
-                instead of sinusoidal embeddings.'
         )
 
         # fmt: on
@@ -177,6 +155,7 @@ class HanTransformerModel(FairseqEncoderDecoderModel):
                 logger.info('adding fake head!')
                 doc_heads = torch.cat((doc_heads, fake_head.unsqueeze(0)), dim=0)
             
+
         self.was_training = self.training
 
         if self.freeze_transfo_params:
@@ -211,40 +190,22 @@ class HanEncoder(FairseqEncoder):
         self.cache = cache
         self.transformer_encoder = transformer_encoder
         self.K = int(args.n_context_sents)
-        self.max_K = int(args.max_context_sents)
         self.embed_dim = args.encoder_embed_dim
         self.dropout = args.dropout
         self.normalize_before = args.encoder_normalize_before
         self.han_heads = args.han_heads
         self.attention_dropout = args.attention_dropout
+
         logger.info(
             "past context sentences modeled: {} ".format(self.K)
         )
 
-        # segment embeddings
-        if args.use_segment_embs: 
-            if args.lrn_segment_embs:
-                logger.info("Learning segment embeddings.")
-                self.segment_embs = nn.Embedding(
-                    self.max_K+1, self.embed_dim, padding_idx=None
-                )
-                self.register_buffer('segment_ids', torch.arange(self.max_K+1))
-            else:
-                logger.info("Using sinusoidal segment embeddings.")
-                self.register_buffer(
-                    'segment_embs',
-                    SinusoidalPositionalEmbedding.get_embedding(
-                        num_embeddings=self.max_K+1,
-                        embedding_dim=self.embed_dim,
-                        padding_idx=None,
-                    )
-                )
-
         # layer norms
+        self.layer_norm_query_word = LayerNorm(self.embed_dim)
+        self.layer_norm_query_sent = LayerNorm(self.embed_dim)
         self.layer_norm_word_level = LayerNorm(self.embed_dim)
         self.layer_norm_sentence_level = LayerNorm(self.embed_dim)
-        self.layer_norm_fc = LayerNorm(self.embed_dim)
-        self.layer_norm_final = LayerNorm(self.embed_dim)
+        self.final_layer_norm = LayerNorm(self.embed_dim)
 
         # hierarchical attention
         self.word_attn = self.build_word_attention(self.embed_dim)
@@ -291,28 +252,33 @@ class HanEncoder(FairseqEncoder):
 
         ### Encode batch, build context and update cache ######################
 
+        # -> T x B x C
         encoder_out = self.transformer_encoder(
             src_tokens, src_lengths=src_lengths
-        ) # T x B x C
+        )
 
         # use cache only if not empty
         dummy_only = True if self.cache.id is None else False
 
         # expand input with cached values
-        expanded_id = self.expand_id(id, dummy_only) # B -> 1 + K + B
+        # B -> 1 + K + B
+        expanded_id = self.expand_id(id, dummy_only)
+        # T x B x C -> T' x (1 + K + B) x C
         expanded_encoder_out = self.expand_h(
             encoder_out.encoder_out, dummy_only
-        ) # T x B x C -> T' x (1 + K + B) x C
+        )
+        # B x T -> (1 + K + B) x T'
         expanded_encoder_padding_mask = self.expand_h_padding_mask(
             encoder_out.encoder_padding_mask, dummy_only
-        ) # B x T -> (1 + K + B) x T'
+        )
 
         # for every encoded sentence in the batch,
         # get the position of context of padding in
         # expanded_encoder_out and expanded_encoder_padding_mask
+        # -> K x B, K x B
         where_context = self.get_context_position(
             id=id, expanded_id=expanded_id, doc_heads=doc_heads
-        ) # K x B
+        )
 
         # update cache
         self.cache.update_cache(
@@ -322,95 +288,89 @@ class HanEncoder(FairseqEncoder):
             sort_order=sort_order,
             doc_heads=doc_heads
         )
-    
+
         ### Hierarchical encoding #############################################       
 
         # word-level attention
-        query_word = encoder_out.encoder_out # T x B x C
+        # T x B x C
+        # query_word_norm = self.layer_norm_query_word(encoder_out.encoder_out)
+        query_word_norm = encoder_out.encoder_out
         w = encoder_out.encoder_out.new_empty(
             encoder_out.encoder_out.shape + (self.K, )
-        ) # T x K x B x C
+        )
         for k in range(self.K):
-            # kth sentence in the context
-            context_k = expanded_encoder_out[:, where_context[k], :] # T' x B x C
-            # padding mask for the kth context sentence
-            padding_mask_k = expanded_encoder_padding_mask[where_context[k], :] # B x T'
-            # word attention over kth context sentence
+            # T' x B x C, kth sentence in the context
+            context_k = expanded_encoder_out[:, where_context[k], :]
+            # B x T', padding for the kth context sentence
+            padding_mask_k = expanded_encoder_padding_mask[where_context[k], :]
+            # T x B x C, word attention over kth context sentence
             w_attn_k, _ = self.word_attn(
-                query=query_word,
+                query=query_word_norm,
                 key=context_k,
                 value=context_k,
                 key_padding_mask=padding_mask_k
-            ) # T x B x C
-            # Note: some w_attn_k are word representations
-            # contextualized over a dummy context.
-            # Hence, they have to be masked in the sentence-level attention.
+            )
+            # Note: for some w_attn_k are sometimes word representations
+            # contextualized over a dummy context. Hence, they have to
+            # be masked in the sentence-level attention.
 
             # layer norm
-            w[..., k] = self.layer_norm_word_level(w_attn_k) # T x K x B x C
-            if hasattr(self, 'segment_embs'):
-                if hasattr(self, 'segment_ids'):
-                    # add learned segment embeddings
-                    w[..., k] = w[..., k] + self.segment_embs(self.segment_ids[k+1]) # T x K x B x C
-                else:
-                    # add sinusoidal segment embeddings
-                    w[..., k] = w[..., k] + self.segment_embs[k+1] # T x K x B x C
-                   
+            w[..., k] = self.layer_norm_word_level(w_attn_k)
 
-        w = w.permute(0, 3, 1, 2) # T x B x C x K -> T x K x B x C
+        # T x B x C x K -> T x K x B x C
+        w = w.permute(0, 3, 1, 2)
 
         # if self.K > 1:
         # sentence-level attention
-        query_sent = encoder_out.encoder_out # T x B x C
-        if hasattr(self, 'segment_embs'):
-            if hasattr(self, 'segment_ids'):
-                # add learned segment embeddings
-                query_sent = query_sent + self.segment_embs(self.segment_ids[0]) # T x B x C
-            else:
-                # add sinusoidal segment embeddings
-                query_sent = query_sent + self.segment_embs[0] # T x B x C
-                
-        s = w.new_empty(query_sent.shape)
+        # T x B x C
+        # query_sent_norm = self.layer_norm_query_sent(encoder_out.encoder_out)
+        query_sent_norm = encoder_out.encoder_out
+        s = w.new_empty(query_sent_norm.shape)
         # Mask dummy keys with 1e-8 so that if all the K keys are dummies,
         # the result of the softmax is not NaN but 1/K. -> K x B
         mask = where_context.float()
         mask[where_context != 0] = 0
         mask[where_context == 0] = -1e8
-        mask = mask.T # K x B -> B x K
-        attn_mask = mask.repeat_interleave(
-            repeats=self.han_heads, dim=0).unsqueeze(1) # (H x B) x 1 x K
+        # K x B -> B x K
+        mask = mask.T
+        # (H x B) x 1 x K
+        attn_mask = mask.repeat_interleave(repeats=self.han_heads,
+                                        dim=0).unsqueeze(1)
         # Looping over word position: some query words in the batch are pads,
         # some sentence-level word representations (keys) are dummies.
-        for t, word in enumerate(query_sent):
+        for t, word in enumerate(query_sent_norm):
             s[t, ...], _ = self.sent_attn(
                 query=word.unsqueeze(0),  # 1 x B x C
                 key=w[t, ...],  # K x B x C
-                value=w[t, ...], # K x B x C
-                attn_mask=attn_mask # (H x B) x 1 x K
+                value=w[t, ...],
+                attn_mask=attn_mask
             )
-        s = self.layer_norm_sentence_level(s) # T x B x C
+        s = self.layer_norm_sentence_level(s)
+        # else:
+        #     # T x 1 x B x C -> T x B x C
+        #     s = w.squeeze(1)
 
-        # position-wise feed forward
+        # T x B x C, position-wise feed forward
         residual = s
-        s = self.activation_fn(self.fc1(s)) # T x B x C
+        s = self.activation_fn(self.fc1(s))
         s = F.dropout(
             s, p=float(self.activation_dropout), training=self.training
-        ) # T x B x C
-        s = self.fc2(s) # T x B x C
-        s = F.dropout(s, p=self.dropout, training=self.training) # T x B x C
-        s = s + residual # T x B x C
-        s = self.layer_norm_fc(s) # T x B x C
+        )
+        s = self.fc2(s)
+        s = F.dropout(s, p=self.dropout, training=self.training)
+        s = s + residual
+        s = self.layer_norm_query_sent(s)
 
         ### Gate encodings ###################################################
 
-        weight = self.linear(torch.cat([encoder_out.encoder_out, s], dim=2)) # T x B x C
+        weight = self.linear(torch.cat([encoder_out.encoder_out, s], dim=2))
         # assign 0 weight to sentences that did not have any context.
         # tomask = ~torch.any(mask == 0, dim=1)
         # weight[:, tomask, :] = float("-inf")
-        weight = self.sigmoid(weight) # T x B x C
-        out = (1 - weight) * encoder_out.encoder_out + weight * s # T x B x C
+        weight = self.sigmoid(weight)
+        out = (1 - weight) * encoder_out.encoder_out + weight * s
         # last layernorm
-        out = self.layer_norm_final(out) # T x B x C
+        out = self.final_layer_norm(out)
 
         return EncoderOut(
             encoder_out=out,  # T x B x C
@@ -520,7 +480,7 @@ class HiddenStatesCache(nn.Module):
 
         if cid[:, None] in (doc_heads - 1):
             # empty cache if the first sentence of the next batch is an head
-            # note: this will not work for the last batch #TODO(lo)
+            # note: this will not work for the last batch #TODO(lore)
             cid = None
 
         if cid is not None:

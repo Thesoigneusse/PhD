@@ -293,9 +293,6 @@ then
     --mode $mode \
     --$opt $val \
     --need-seg-label $need_seg_label \
-    --quiet-attention $quiet_attention \
-    --extract-attention $extract_attention \
-    --attention-output-file $attention_output_file \
     --batch-size $batch_size \
     --remove-bpe \
     --beam $beam \
@@ -305,6 +302,9 @@ then
     --num-workers $num_workers \
     --seed $seed \
     | tee $save_dir/logs/$testlog.log
+    # --quiet-attention $quiet_attention \
+    # --extract-attention $extract_attention \
+    # --attention-output-file $attention_output_file \
     # --skip-invalid-size-inputs-valid-test \
     # --max-source-positions $max_src_pos \
     # --max-target-positions $max_tgt_pos

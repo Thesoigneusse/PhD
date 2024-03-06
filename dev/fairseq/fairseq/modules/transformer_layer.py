@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 import torch
 import torch.nn as nn
 from fairseq import utils
-from fairseq.modules import LayerNorm, MultiheadAttention
+from fairseq.modules import LayerNorm, MultiheadAttention, QuietMultiheadAttention
 from fairseq.modules.quant_noise import quant_noise
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from torch import Tensor
@@ -87,8 +87,7 @@ class TransformerEncoderLayer(nn.Module):
         )
 
     def build_self_attention(self, embed_dim, args):
-        if hasattr(args, "quiet_attention") and args.quiet_attention:
-            from fairseq.modules import QuietMultiheadAttention
+        if hasattr(args, "quiet_attention") and utils.eval_bool(args.quiet_attention):
             return QuietMultiheadAttention(
                 embed_dim,
                 args.encoder_attention_heads,
@@ -287,8 +286,7 @@ class TransformerDecoderLayer(nn.Module):
     def build_self_attention(
         self, embed_dim, args, add_bias_kv=False, add_zero_attn=False
     ):
-        if hasattr(args, "quiet_attention") and args.quiet_attention:
-            from fairseq.modules import QuietMultiheadAttention
+        if hasattr(args, "quiet_attention") and utils.eval_bool(args.quiet_attention):
             return QuietMultiheadAttention(
                 embed_dim,
                 args.decoder_attention_heads,
@@ -298,6 +296,7 @@ class TransformerDecoderLayer(nn.Module):
                 self_attention=not getattr(args, "cross_self_attention", False),
             )
         else :
+            # print("[DEBUG]built usual attention")
             return MultiheadAttention(
                 embed_dim,
                 args.decoder_attention_heads,
@@ -310,8 +309,7 @@ class TransformerDecoderLayer(nn.Module):
             )
 
     def build_encoder_attention(self, embed_dim, args):
-        if hasattr(args, "quiet_attention") and args.quiet_attention:
-            from fairseq.modules import QuietMultiheadAttention
+        if hasattr(args, "quiet_attention") and utils.eval_bool(args.quiet_attention):
             return QuietMultiheadAttention(
                 embed_dim,
                 args.decoder_attention_heads,

@@ -261,14 +261,16 @@ class ConcatTransformer(TransformerModel):
         alignment_layer: Optional[int] = None,
         alignment_heads: Optional[int] = None,
     ):
-
+        for t in src_tokens:
+            print(f"[DEBUG] t.device: {t.device}")
+            sys.stdout.flush()
         encoder_out = self.encoder(
             src_tokens,
             nsents,
             return_all_hiddens=return_all_hiddens,
             src_segment_labels=src_segment_labels,
         )
-
+        # print(f"[DEBUG]encoder_out: {encoder_out}")
         decoder_out = self.decoder(
             prev_output_tokens,
             po_segment_labels=po_segment_labels,
@@ -323,7 +325,6 @@ class ConcatTransformerEncoder(TransformerEncoder):
             logger.info("segment embeddings are persistent througout encoder layers")
         if self.persistent_positions:
             logger.info("positions are persistent througout encoder layers")
-
     # @attention.save_encoder_values
     def forward(
         self,
@@ -339,25 +340,27 @@ class ConcatTransformerEncoder(TransformerEncoder):
         # print(self.roberta.decode(src_tokens[2].cpu()))
 
         # Utilisation de l'encodage de RoBERTa
-        if hasattr(self, 'roberta') and self.roberta is not None:
+        if  hasattr(self, 'roberta') and self.roberta is not None:
             x_device = src_tokens.device
-            # src_tokens = [ self.roberta.encode( self.dictionary.string(t) ) for t in src_tokens ]
-            # src_tokens = collate_tokens( src_tokens, self.dictionary.pad() ).to(x_device)
-
+            #print(f"[DEBUG]x_device src_tokens: {x_device}")
+            sys.stdout.flush()
             ## Already done in sent2doc_dataset.py
             # print(f"[DEBUG] **********************extract feature: \n{self.roberta.extract_features.__code__.co_varnames[:self.roberta.extract_features.__code__.co_argcount]}\n*******************************")
-            trs_x = self.roberta.extract_features( src_tokens, return_all_hiddens=True)
-
+            trs_x = self.roberta.extract_features(src_tokens, return_all_hiddens=True)
             # print(f"[DEBUG] src_tokens.size: {[x.size() for x in src_tokens]}")
             # print(f"[DEBUG] trs_x.size: {[x.size() for x in trs_x]}")
             trs_x = torch.stack( trs_x[-4:], dim=-1 )
             # print(f"[AFTER] trs_x.size: {[x.size() for x in trs_x]}")
             trs_x = torch.mean( trs_x, dim=3 )
             trs_x = F.dropout(trs_x, p=self.dropout_module.p, training=self.training)
-            x = encoder_embedding = trs_x
+            x, encoder_embedding = trs_x, trs_x[0]
+
         else:
-            
+            #print(f"[DEBUG]x_device src_tokens: {src_tokens.device}")
+            sys.stdout.flush()
+
             x = encoder_embedding = self.embed_scale * self.embed_tokens(src_tokens)
+            #print(f"[DEBUG]x.device: {x.device}")
             # print(f"[DEBUG] type(x): {type(x)}")
             # print(f"[DEBUG] x.size: {x.size()}")
         # embed tokens
@@ -391,7 +394,6 @@ class ConcatTransformerEncoder(TransformerEncoder):
                     positions = self.embed_positions(src_tokens)
                 # print(f"[DEBUG]x size: {x.size()}")
                 # print(f"[DEBUG]position.size: {positions.size()}")
-                sys.stdout.flush()
                 x += positions
             # embed segments
             if self.embed_segments is not None:
@@ -459,16 +461,7 @@ class ConcatTransformerEncoder(TransformerEncoder):
         if self.layer_norm is not None:
             x = self.layer_norm(x)
 
-        # if attns is not None and len(attns) > 0:
-            #    # TODO: save attention and sentences here => similar to what we have done for the multi-encoder model !
-            # print(f"[DEBUG]attns : {attns}")
-            # for i in range(len(attns)):
-            #    # print(f"[DEBUG]attns[i] : {attns[i].item()}")
-            #    print(f"[DEBUG]attns[{i}, :, :] : {attns[i]}")
-            #    sys.stdout.flush()
-            #    save_attn[idx]["matrix_weights"].append(attns[i])
-        #    raise NotImplementedError()
-
+        # print(f"***************************\n[DEBUG]EncoderOut: {EncoderOut}")
         return EncoderOut(
             encoder_out=x,  # T x B x C
             encoder_padding_mask=encoder_padding_mask,  # B x T

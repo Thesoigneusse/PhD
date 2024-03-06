@@ -43,6 +43,9 @@ if [ -n "$mover" ]; then mover=$mover ; else mover="{}" ; fi
 if [ -n "$mt" ]; then maxtok=$mt ; else maxtok=8000 ; fi
 if [ -n "$uf" ]; then updatefreq=$uf ; else updatefreq=2 ; fi
 
+if [ -n "$path" ]; then checkpoint_path=$path; else checkpoint_path=$checkpoint_path ; fi
+
+
 if [ $t = "train" ]
 then
     if [ $t != "results" ]
@@ -115,7 +118,7 @@ then
     --lenpen $lenpen \
     --temperature 1 \
     --num-workers $num_workers \
-    | tee $save_dir/logs/$testlog.log
+    | tee /home/getalp/lopezfab/temp/lorenzo_logs/logs/$testlog.log
     # score with sacrebleu
     grep ^S $save_dir/logs/$testlog.log | sed 's/^S-//g' | sort -nk 1 | cut -f2- | sacremoses detokenize > $save_dir/logs/$testlog.out.src
     grep ^T $save_dir/logs/$testlog.log | sed 's/^T-//g' | sort -nk 1 | cut -f2- | sacremoses detokenize > $save_dir/logs/$testlog.out.ref

@@ -766,6 +766,10 @@ def eval_bool(x, default=False):
         return default
     if type(x) == bool:
         return x
+    elif type(x) == str and (x == "True" or x == "False"):
+        return x == "True"
+    else:
+        return None
     try:
         return bool(eval(x))
     except TypeError:

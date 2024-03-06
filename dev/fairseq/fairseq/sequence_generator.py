@@ -12,7 +12,9 @@ from fairseq import search, utils
 from fairseq.data import data_utils
 from fairseq.models import FairseqIncrementalDecoder
 from fairseq.models.fairseq_encoder import EncoderOut
+from fairseq.models import concat_transformer, han_transformer
 from torch import Tensor
+import sys
 
 
 class SequenceGenerator(nn.Module):
@@ -301,15 +303,22 @@ class SequenceGenerator(nn.Module):
                 incremental_states,
                 self.temperature,
             )
-
+            #print("\n ************************************** \n [DEBUG]avg_attn_scores: {}".format(avg_attn_scores))
             # Attention extraction
-            if self.model.__get_name() == "ConcatTransformer":
+            # print("[DEBUG]self name: {}".format(self.model.models[0].__class__.__name__))
+            ## TODO : Prise en compte du modèle Concat pour la gestion de l'extraction de l'attention
+            # if hasattr(self.model.models[0], "name"):
+            #     print("[DEBUG] Model name for generate: {}".format(self.model.models[0].__get_name()))
+            if isinstance(self.model.models[0], concat_transformer.ConcatTransformer) \
+                and utils.eval_bool(self.model.models[0].args.extract_attention):
                 curr_enc_attn = None
                 curr_dec_attn = None
-                if 'enc_attns' in avg_attn_scores:
+                if avg_attn_scores is not None and 'enc_attns' in avg_attn_scores:
                     # NOTE: we take only the attention at the last layer
                     curr_enc_attn = avg_attn_scores['enc_attns'][-1]
                     curr_dec_attn = avg_attn_scores['dec_attns'][-1]
+                print("[DEBUG]avg_attn_scores: {}".format(avg_attn_scores))
+                sys.stdout.flush()
                 avg_attn_scores = avg_attn_scores['attn'][0] if 'attn' in avg_attn_scores and avg_attn_scores['attn'] is not None else None
 
 
@@ -353,7 +362,8 @@ class SequenceGenerator(nn.Module):
                 attn[:, :, step + 1].copy_(avg_attn_scores)
 
             # Attention extraction
-            if self.model.__get_name() == "ConcatTransformer":
+            if self.model.models[0].__class__.__name__  == "ConcatTransformer"\
+                and utils.eval_bool(self.model.models[0].args.extract_attention):
                 if curr_enc_attn is not None:
                     if enc_attn is None:
                         enc_attn = curr_enc_attn
@@ -374,7 +384,7 @@ class SequenceGenerator(nn.Module):
                     dec_attn[:, :len_dim, step+1].copy_(src_tsr)
 
             # Record attention scores, only support avg_attn_scores is a Tensor
-            if self.extract_attention:
+            if hasattr(self, "extract_attention") and self.extract_attention:
                 if avg_attn_scores is not None:
                     if attn is None:
                         attn = torch.empty(
@@ -427,23 +437,39 @@ class SequenceGenerator(nn.Module):
                 eos_scores = torch.masked_select(
                     cand_scores[:, :beam_size], mask=eos_mask[:, :beam_size]
                 )
+                #print("[DEUBG]dict: {}".format(self.model.models[0].__class__.__dict__))
+                if self.model.models[0].__class__.__name__ == "ConcatTransformer"\
+                    and utils.eval_bool(self.model.models[0].args.extract_attention):
+                    finalized_sents = self.finalize_hypos(
+                        step,
+                        eos_bbsz_idx,
+                        eos_scores,
+                        tokens,
+                        scores,
+                        finalized,
+                        finished,
+                        beam_size,
+                        attn,
+                        src_lengths,
+                        max_len,
+                        enc_attn,
+                        dec_attn,
 
-                finalized_sents = self.finalize_hypos(
-                    step,
-                    eos_bbsz_idx,
-                    eos_scores,
-                    tokens,
-                    scores,
-                    finalized,
-                    finished,
-                    beam_size,
-                    attn,
-                    src_lengths,
-                    max_len,
-                    enc_attn,
-                    dec_attn,
-
-                )
+                    )
+                else:
+                    finalized_sents = self.finalize_hypos(
+                        step,
+                        eos_bbsz_idx,
+                        eos_scores,
+                        tokens,
+                        scores,
+                        finalized,
+                        finished,
+                        beam_size,
+                        attn,
+                        src_lengths,
+                        max_len,
+                    )
                 num_remaining_sent -= len(finalized_sents)
 
             assert num_remaining_sent >= 0
